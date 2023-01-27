@@ -26,7 +26,7 @@ function extractJSON(stream) {
     return [rest, json_data];
   } catch (err) {
     console.log("Error on extracting JSON", err);
-    return [stream, {}];
+    return [stream.slice(1), {}];
   }
 }
 
@@ -43,6 +43,7 @@ function extractAttachment(stream) {
 var PARSED_DATA = []
 
 function parseStream(stream) {
+  PARSED_DATA = [];
   let json_data, attachment;
   while(stream.length!=0) {
     if(stream[0]=='{') {

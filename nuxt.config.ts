@@ -17,6 +17,19 @@ export default defineNuxtConfig({
           name: 'viewport',
           content: 'width=device-width, initial-scale=1'
         },
+        {
+          hid: 'description',
+          name: 'description',
+          content: 'CESR Viewer | A Development Tool for CESR'
+        },
+        {
+          property: 'og:title',
+          content: 'CESR Viewer'
+        },
+        {
+          property: 'og:description',
+          content: 'CESR Viewer | A Development Tool for CESR'
+        },
       ],
       link: [
         {
