@@ -1,5 +1,7 @@
 import utils from './utils';
 import parser from './parser';
+import htmlGenerator from './generateHTML';
+import codeTable from './codetable';
 
 
 function parseCESRFromJSON(obj) {
@@ -57,6 +59,7 @@ function parseStream(stream) {
     }
   }
   console.log(PARSED_DATA);
+  return PARSED_DATA;
 }
 
 
@@ -64,7 +67,9 @@ export default defineNuxtPlugin(nuxtApp => {
   return {
     provide: {
       parseStream: parseStream,
-      PARSED_DATA: PARSED_DATA
+      PARSED_DATA: PARSED_DATA,
+      generateCESRHtml: htmlGenerator.generateCESRHtml,
+      getMetaInfoFromCESRCodetable: codeTable.getMetaInfo
     }
   }
 })

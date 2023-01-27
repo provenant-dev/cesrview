@@ -34,5 +34,8 @@ export default defineNuxtConfig({
         }
       ],
     }
-  }
+  },
+  css: [
+    '~/assets/scss/cesr-styles.scss'
+  ]
 })

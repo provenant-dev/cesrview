@@ -1,0 +1,185 @@
+.cesr_code {
+  padding: 3px 6px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.code_A {
+  @extend .cesr_code;
+  color: bisque;
+  background-color: rgb(243, 105, 105);
+}
+
+.code_B {
+  @extend .cesr_code;
+  color: bisque;
+  background-color: rgb(165, 147, 44);
+}
+
+.code_C {
+  @extend .cesr_code;
+  color: bisque;
+  background-color: rgb(48, 119, 19);
+}
+
+.code_D {
+  @extend .cesr_code;
+  color: bisque;
+  background-color: rgb(131, 133, 12);
+}
+
+.code_E {
+  @extend .cesr_code;
+  color: rgb(2, 2, 2);
+  background-color: rgb(22, 219, 203);
+}
+
+.code_F {
+  @extend .cesr_code;
+  color: rgb(0, 0, 0);
+  background-color: rgb(250, 140, 140);
+}
+
+.code_G {
+  @extend .cesr_code;
+  color: rgb(0, 0, 0);
+  background-color: rgb(113, 190, 241);
+}
+
+.code_H {
+  @extend .cesr_code;
+  color: rgb(0, 0, 0);
+  background-color: rgb(243, 90, 90);
+}
+
+.code_I {
+  @extend .cesr_code;
+  color: bisque;
+  background-color: rgb(61, 23, 23);
+}
+
+.code_J {
+  @extend .cesr_code;
+  color: bisque;
+  background-color: rgb(56, 33, 33);
+}
+
+.code_K {
+  @extend .cesr_code;
+  color: bisque;
+  background-color: rgb(46, 36, 36);
+}
+
+.code_L {
+  @extend .cesr_code;
+  color: bisque;
+  background-color: rgb(12, 10, 10);
+}
+
+.code_O {
+  @extend .cesr_code;
+  color: bisque;
+  background-color: rgb(53, 51, 51);
+}
+
+.code_P {
+  @extend .cesr_code;
+  color: bisque;
+  background-color: rgb(46, 3, 3);
+}
+
+.code_0A {
+  @extend .cesr_code;
+  color: rgb(0, 0, 0);
+  background-color: rgb(122, 197, 103);
+}
+
+.code_0B {
+  @extend .cesr_code;
+  color: bisque;
+  background-color: rgb(110, 108, 226);
+}
+
+.code_0C {
+  @extend .cesr_code;
+  color: bisque;
+  background-color: rgb(29, 10, 73);
+}
+
+.code_0D {
+  @extend .cesr_code;
+  color: rgb(3, 3, 3);
+  background-color: rgb(238, 166, 245);
+}
+
+.code_0E {
+  @extend .cesr_code;
+  color: rgb(0, 0, 0);
+  background-color: rgb(245, 233, 123);
+}
+
+.code_0F {
+  @extend .cesr_code;
+  color: rgb(0, 0, 0);
+  background-color: rgb(200, 188, 243);
+}
+
+.code_0G {
+  @extend .cesr_code;
+  color: rgb(10, 10, 10);
+  background-color: rgb(204, 236, 144);
+}
+
+.code_1AAA {
+  @extend .cesr_code;
+  color: rgb(236, 236, 236);
+  background-color: rgb(86, 42, 97);
+}
+
+.code_1AAB {
+  @extend .cesr_code;
+  color: rgb(0, 0, 0);
+  background-color: rgb(175, 194, 1);
+}
+
+.code_1AAC {
+  @extend .cesr_code;
+  color: rgb(0, 0, 0);
+  background-color: rgb(0, 247, 173);
+}
+
+.code_1AAD {
+  @extend .cesr_code;
+  color: rgb(0, 0, 0);
+  background-color: rgb(172, 243, 231);
+}
+
+.code_1AAE {
+  @extend .cesr_code;
+  color: bisque;
+  background-color: rgb(27, 134, 111);
+}
+
+.code_1AAH {
+  @extend .cesr_code;
+  color: bisque;
+  background-color: rgb(2, 27, 17);
+}
+
+.code_-A {
+  @extend .cesr_code;
+  color: bisque;
+  background-color: rgb(35, 58, 53);
+}
+
+.code_-C {
+  @extend .cesr_code;
+  color: rgb(0, 0, 0);
+  background-color: rgb(141, 180, 32);
+}
+
+.code_-V {
+  @extend .cesr_code;
+  color: rgb(248, 248, 248);
+  background-color: rgb(92, 37, 37);
+}
