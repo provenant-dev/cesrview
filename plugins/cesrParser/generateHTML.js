@@ -1,11 +1,15 @@
 var stack = [];
 
-function addTabSpace(multiplier=2) {
+function addTabSpace(multiplier=2) {  // multiplier = tab size
   return "&nbsp;".repeat(stack.length * multiplier);
 }
 
 function addCSSClass(value,meta){
-  return "<span class='code_" + meta.code + "' meta-cesr-code='"+meta.code+"'>" + value + "</span>";
+  let meta_count_data = "";
+  if(meta.hasOwnProperty('type')) {
+    meta_count_data = " meta-cesr-count-code='" + meta.counter_code + "' meta-cesr-count-code-int='" + meta.counter_code_int + "' ";
+  }
+  return "<span class='code_" + meta.code + "' meta-cesr-code='"+meta.code+"' "+ meta_count_data +" >" + value + "</span>";
 }
 
 function generateCESRHtml(object) {
@@ -23,7 +27,6 @@ function generateCESRHtml(object) {
     }
 
     if(object[i].hasOwnProperty('____meta')) {
-      // class need to add here
       generated = generated + addTabSpace() + addCSSClass(object[i].____value, object[i].____meta) + ",<br>";
     } else if (object[i].hasOwnProperty('____value')){
       generated = generated + addTabSpace() + object[i].____value + ",<br>";
