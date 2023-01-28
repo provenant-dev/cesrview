@@ -25,11 +25,20 @@ export default {
       console.log(this.inputData);
       if(this.inputData) {
         console.log("Parsing Started");
-        let temp = this.$parseStream(this.inputData);
+        let sanitizedData = this.sanitizeInput(this.inputData);
+        let temp = this.$parseStream(sanitizedData);
         this.outputData =  this.$generateCESRHtml(temp);
         console.log(this.outputData);
       }
-        
+    },
+    sanitizeInput(string) {
+      const map = {
+          '&': '&amp;',
+          '<': '&lt;',
+          '>': '&gt;',
+      };
+      const reg = /[&<>]/ig;
+      return string.replace(reg, (match)=>(map[match]));
     }
   }
 }

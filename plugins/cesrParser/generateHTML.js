@@ -1,7 +1,15 @@
 var stack = [];
 
-function addTabSpace(multiplier=2) {  // multiplier = tab size
+function addTabSpace(multiplier=3) {  // multiplier = tab size
   return "&nbsp;".repeat(stack.length * multiplier);
+}
+
+var lineNumber = 0;
+function addNewLine() {
+  lineNumber++;
+  if(lineNumber === 1)
+    return "<span class='op-line-number'>" + lineNumber + "</span>";
+  return "<br><span class='op-line-number'>" + lineNumber + "</span>";
 }
 
 function addCSSClass(value,meta){
@@ -12,34 +20,34 @@ function addCSSClass(value,meta){
   return "<span class='code_" + meta.code + "' meta-cesr-code='"+meta.code+"' "+ meta_count_data +" >" + value + "</span>";
 }
 
-function generateCESRHtml(object) {
+function __generateCESRHtml(object) {
   var generated = "";
   for (let i in object) {
     if(isNaN(Number(i))){
-      generated = generated + addTabSpace() + i + ": "
+      generated = generated + addNewLine() + addTabSpace() + i + ": "
 
       if(object[i] && object[i].hasOwnProperty('length') && object[i].length > 1) {
-        generated += "[ <br>"
+        generated = generated + "[ ";
       } else {
-        generated += "{ <br>"
+        generated = generated + "{ ";
       }
       stack.push(i);
     }
 
     if(object[i].hasOwnProperty('____meta')) {
-      generated = generated + addTabSpace() + addCSSClass(object[i].____value, object[i].____meta) + ",<br>";
+      generated = generated + addNewLine() + addTabSpace() + addCSSClass(object[i].____value, object[i].____meta) + ",";
     } else if (object[i].hasOwnProperty('____value')){
-      generated = generated + addTabSpace() + object[i].____value + ",<br>";
+      generated = generated + addNewLine() + addTabSpace() + object[i].____value + ",";
     } else {
-      generated += generateCESRHtml(object[i])
+      generated += __generateCESRHtml(object[i])
     }
 
     if(isNaN(Number(i))){
       stack.pop();
       if(object[i] && object[i].hasOwnProperty('length') && object[i].length > 1) {
-        generated = generated + addTabSpace() + "]<br>"
+        generated = generated + addNewLine() + addTabSpace() + "]";
       } else {
-        generated = generated + addTabSpace() + "}<br>"
+        generated = generated + addNewLine() + addTabSpace() + "}";
       }
       
     }
@@ -47,5 +55,10 @@ function generateCESRHtml(object) {
   return generated
 }
 
+
+function generateCESRHtml(object) {
+  lineNumber = 0;
+  return __generateCESRHtml(object);
+}
 
 export default {generateCESRHtml}

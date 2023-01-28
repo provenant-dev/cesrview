@@ -16,6 +16,10 @@
             <div class="card-body">
               <div v-if="metaInfo">
                 <div class="accordion" id="accordionCESRMoreInfo">
+
+                  <button class="btn btn-outline-success mb-3" style="width: 100%;" @click="copyToClipboard">
+                    {{ cesrData!="" && copiedInClipboard ? "Copied To Clipboard!":"Copy To Clipboard" }}
+                  </button>
                   
                   <Accordion v-if="metaInfo.code" title="Code" :value="metaInfo.code" id="cesr-collapse-1" parentID="accordionCESRMoreInfo" />
 
@@ -46,18 +50,30 @@ export default {
   props: ['outputData'],
   data(){
     return {
-      metaInfo: null
+      metaInfo: null,
+      cesrData: "",
+      copiedInClipboard: false
     }
   },
   methods:{
     clickOnOutput(event){
       if(event.target.getAttribute('meta-cesr-code')) {
+        this.cesrData = event.target.innerHTML;
         this.metaInfo = this.$getMetaInfoFromCESRCodetable(event.target.getAttribute('meta-cesr-code'));
         if(event.target.getAttribute('meta-cesr-count-code') && event.target.getAttribute('meta-cesr-count-code-int')) {
           this.metaInfo.counter_code = event.target.getAttribute('meta-cesr-count-code');
           this.metaInfo.counter_code_int = event.target.getAttribute('meta-cesr-count-code-int');
         }
-        console.log(this.metaInfo);
+        this.copiedInClipboard = false;
+        // console.log(this.metaInfo);
+      }
+    },
+    copyToClipboard(){
+      if(this.cesrData) {
+        navigator.clipboard.writeText(this.cesrData);
+        this.copiedInClipboard = true;
+      } else {
+        this.copiedInClipboard = false;
       }
     }
   }

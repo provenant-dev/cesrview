@@ -4,6 +4,15 @@
   cursor: pointer;
 }
 
+.op-line-number{
+  padding: 3px 5px;
+  min-width: 40px;
+  display: inline-block;
+  margin-right: 5px;
+  text-align: center;
+  background-color: rgb(227, 226, 226);
+}
+
 .code_A {
   @extend .cesr_code;
   color: bisque;
