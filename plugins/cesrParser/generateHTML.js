@@ -28,8 +28,10 @@ function __generateCESRHtml(object) {
 
       if(object[i] && object[i].hasOwnProperty('length') && object[i].length > 1) {
         temp += "[ ";
-      } else {
+        console.log("Adding [", object[i]);
+      } else if(Object.keys(object[i]).length > 1) {
         temp += "{ ";
+        console.log("Adding {", object[i]);
       }
       generated += generateLine(temp);
       stack.push(i);
@@ -47,7 +49,7 @@ function __generateCESRHtml(object) {
       stack.pop();
       if(object[i] && object[i].hasOwnProperty('length') && object[i].length > 1) {
         generated += generateLine(addTabSpace() + "]");
-      } else {
+      } else if(Object.keys(object[i]).length > 1) {
         generated += generateLine(addTabSpace() + "}");
       }
     }
