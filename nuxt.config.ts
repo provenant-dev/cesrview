@@ -2,7 +2,7 @@
 export default defineNuxtConfig({
   ssr: false,
   app: {
-    baseURL: '/cesrview/',
+    baseURL: '/',
     head: {
       charset: 'UTF-8',
       title: 'CESR Viewer',
