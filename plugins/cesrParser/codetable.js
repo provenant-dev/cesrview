@@ -414,7 +414,7 @@ const CODE_TABLE = {
       "description": "Composed Base64 Couple, fnu+dts."
     },
     "F": {
-      "name": "TransIdxSigGroups",
+      "name": "TransIndexedSigGroups",
       "count_code_len": 2,
       "code": "-F",
       "code_len": 4,

@@ -3,6 +3,16 @@
 import codetable from './codetable';
 import B64 from './converter';
 
+/*
+CESR Data only contains A to Z, a to z, 0 to 9, -, and _ to encode 6 bits of information.
+Source: https://weboftrust.github.io/ietf-cesr/draft-ssmith-cesr.html#name-concrete-domain-representat
+*/
+function verifyCESRData(data){
+  if(data.match(/[^A-Za-z0-9-_]/gm)==null)
+    return true;
+  return false;
+}
+
 
 function extractPrimitive(str, meta) {
   var rest = str.slice(meta.total_len);

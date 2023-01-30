@@ -22,13 +22,12 @@ export default {
   },
   methods: {
     processInput() {
-      console.log(this.inputData);
       if(this.inputData) {
         console.log("Parsing Started");
         let sanitizedData = this.sanitizeInput(this.inputData);
         let temp = this.$parseStream(sanitizedData);
         this.outputData =  this.$generateCESRHtml(temp);
-        console.log(this.outputData);
+        // console.log(this.outputData);
       }
     },
     sanitizeInput(string) {
