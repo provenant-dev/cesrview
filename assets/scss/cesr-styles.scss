@@ -4,13 +4,22 @@
   cursor: pointer;
 }
 
+.op-line-container {
+  display: flex;
+}
+
 .op-line-number{
   padding: 3px 5px;
   min-width: 40px;
   display: inline-block;
   margin-right: 5px;
   text-align: center;
+  font-size: 0.9em;
   background-color: rgb(227, 226, 226);
+}
+
+.op-line-data {
+  display: inline-block;
 }
 
 .code_A {
