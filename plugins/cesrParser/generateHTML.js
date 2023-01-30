@@ -11,7 +11,7 @@ function addCSSClass(value, meta){
   if(meta.hasOwnProperty('type')) {
     meta_count_data = " meta-cesr-count-code='" + meta.counter_code + "' meta-cesr-count-code-int='" + meta.counter_code_int + "' ";
   }
-  return "<span class='code_" + meta.code + "' meta-cesr-code='"+meta.code+"' "+ meta_count_data +" >" + value + "</span>";
+  return "<span class='cesr_code code_" + meta.code + "' meta-cesr-code='"+meta.code+"' "+ meta_count_data +" >" + value + "</span>";
 }
 
 
