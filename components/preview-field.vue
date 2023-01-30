@@ -68,9 +68,9 @@ export default {
         // console.log(this.metaInfo);
       }
     },
-    copyToClipboard(){
-      if(this.cesrData) {
-        navigator.clipboard.writeText(this.cesrData);
+    async copyToClipboard(){
+      if(this.cesrData && navigator && navigator.clipboard) {
+        await navigator.clipboard.writeText(this.cesrData);
         this.copiedInClipboard = true;
       } else {
         this.copiedInClipboard = false;

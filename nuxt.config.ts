@@ -38,6 +38,10 @@ export default defineNuxtConfig({
           integrity: "sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC",
           crossorigin: "anonymous"
         },
+        {
+          href: 'https://fonts.googleapis.com/css2?family=Ubuntu+Mono&display=swap',
+          rel: 'stylesheet'
+        }
       ],
       script: [
         {

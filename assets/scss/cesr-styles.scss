@@ -6,6 +6,9 @@
 
 .op-line-container {
   display: flex;
+  font-family: 'Ubuntu Mono', monospace;
+  font-size: 1.1em;
+  line-height: 1.4em;
 }
 
 .op-line-number{
@@ -14,7 +17,7 @@
   display: inline-block;
   margin-right: 5px;
   text-align: center;
-  font-size: 0.9em;
+  font-size: 1em;
   background-color: rgb(227, 226, 226);
 }
 
