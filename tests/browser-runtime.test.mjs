@@ -43,6 +43,32 @@ test('browser bundle executes without Node globals or external imports', async (
     context.stream = new Uint8Array(Buffer.from(row.qb2, 'hex'));
     assert.equal(vm.runInContext('CesrViewerParser.inspectCesr(stream).nodes.length', context), 1, row.name);
   }
+  // Exercise errors in the real browser bundle, where the package's error-name
+  // packaging adapter is applied (its Node entry has a broken import.meta shim).
+  const { CESR_EXAMPLE, CESR_EXAMPLES, exampleInput } = await import('../lib/cesr-example.js');
+  for (const example of CESR_EXAMPLES) {
+    context.exampleInput = exampleInput(example);
+    context.exampleOptions = example;
+    assert.ok(vm.runInContext('CesrViewerParser.inspectCesr(exampleInput, exampleOptions).nodes.length > 0', context), example.id);
+  }
+  context.valid = CESR_EXAMPLE;
+  const failure = input => {
+    context.bad = input;
+    return vm.runInContext(`(() => {
+      try { CesrViewerParser.inspectCesr(bad); } catch (cause) {
+        return CesrViewerParser.describeInspectionError(cause, bad);
+      }
+    })()`, context);
+  };
+  const malformed = CESR_EXAMPLE.replace('"s":"0"', '"s":x00');
+  assert.equal(failure(malformed).location.start, malformed.indexOf('x00'));
+  assert.equal(failure(CESR_EXAMPLE + malformed).location.start, CESR_EXAMPLE.length + malformed.indexOf('x00'));
+  let unicode = '{"v":"KERI10JSON000000_","t":"rpy","a":"München 😀","bad":x}';
+  unicode = unicode.replace('000000', new TextEncoder().encode(unicode).length.toString(16).padStart(6, '0'));
+  assert.equal(failure(unicode).location.start, new TextEncoder().encode(unicode.slice(0, unicode.indexOf(':x') + 1)).length);
+
+  assert.equal(failure(CESR_EXAMPLE.slice(0, -1)).location.kind, 'end');
+  assert.equal(failure(CESR_EXAMPLE.slice(0, -1)).location.start, CESR_EXAMPLE.length - 1);
   assert.throws(
     () => vm.runInContext("CesrViewerParser.inspectCesr('4AABtes', {mode:'matter'})", context),
     error => /Need .* bytes/.test(error.message) && error.name === 'ShortageError',
@@ -53,7 +79,7 @@ test('the actual recursive Vue template renders untrusted keys and values as tex
   const source = readFileSync(new URL('../components/cesr-node.vue', import.meta.url), 'utf8');
   const { descriptor } = parse(source);
   const render = new Function('Vue', compile(descriptor.template.content, { prefixIdentifiers: true }).code)(Vue);
-  const component = { name: 'CesrNode', props: ['node'], emits: ['select'], render };
+  const component = { name: 'CesrNode', props: ['node', 'selected', 'showLabels'], emits: ['select'], render };
   const hostile = '<img src=x onerror=alert(1)>';
   const app = Vue.createSSRApp(component, {
     node: { label: hostile, value: hostile, children: [{ value: hostile, meta: { Code: 'A' } }] },

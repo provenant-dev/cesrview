@@ -30,6 +30,54 @@ Locally preview production build:
 npm run preview
 ```
 
+## Inspector controls
+
+- **Examples…** loads and inspects one of nine examples, setting the mode,
+  encoding, and counter-table version automatically. It replaces the current
+  input. A short description explains each example; editing removes its label.
+- Drag the divider to resize the input pane. With the divider focused, use the
+  arrow keys (Shift for larger steps), Home or End. Double-click resets the width.
+  The width is saved locally. Mobile layouts stack the panes.
+- The source editor highlights JSON and parsed CESR values without formatting or
+  rewriting input. Ctrl/Command + Enter inspects the current source.
+- Select a decoded scalar or primitive, or use **Show source** on a group, to
+  highlight its original bytes. Byte offsets are zero-based. Text files open
+  read-only; binary files use a paginated hex view. Text files also offer a hex view.
+- **Field names** adds descriptions to recognized top-level KERI event fields.
+  Raw field keys remain visible; nested application data is not relabeled.
+- Parse errors link to a byte location when available. JSON syntax positions are
+  converted from character indexes to UTF-8 byte offsets; truncated input marks
+  the end of the source. Errors without reliable locations are explicitly marked.
+
+Source mapping is presentation metadata. It uses exact wire matches and JSON
+pointers, preserving distinctions between repeated fields, escaped strings and
+Unicode. Some native, wrapped and binary bodies do not expose individual field
+ranges; these offer **Show message body** instead. Ambiguous byte matches are
+left unlinked. Source highlights do not imply cryptographic verification.
+
+### Example correctness
+
+The picker includes the original KERIpy inception body, a signed inception, an
+inception → rotation → interaction stream, its public key, SAID and indexed
+signature, and v1 text / v2 text / v2 binary controller-signature groups.
+The signature fragments all come from the signed inception. The v1 counter
+counts one signature; the v2 counter counts 22 payload quadlets (88 text
+characters or 66 binary bytes, excluding the counter).
+
+The original body has a pinned upstream source in `lib/cesr-example.js`.
+The additional signed events are deterministic fixtures using public demo seeds,
+generated with the pinned `cesr-ts` dependency and KERI v1 event field ordering.
+They are not production identities. Regenerate the committed bodies and
+signatures with `node build/example-events.mjs`; the browser only loads the
+resulting data, and never generates keys or signatures.
+
+`tests/examples.test.mjs` checks exact version-string byte lengths, independently
+recomputes BLAKE3 SAIDs, verifies Ed25519 signatures with Node crypto, and checks
+sequence numbers, prior-event links and next-key commitments. All examples also
+run through the actual browser parser and the UI selection flow, including binary
+bytes. These checks validate the supplied examples; the viewer still only decodes
+user input and does not perform cryptographic or KEL validation.
+
 ## Parser and compatibility
 
 Parsing is delegated to **`cesr-ts@2.0.0`**, pinned in `package.json` and
@@ -156,7 +204,8 @@ their Apache-2.0 license is included alongside them.
 
 The browser test bundles the real adapter with the same Vite packaging rules and
 executes it without Node globals or external imports. It also renders the actual
-recursive Vue template with hostile text to verify escaping. This is a runtime
-and rendering check, not an end-to-end browser interaction test. The test runner
+recursive Vue template with hostile text to verify escaping. The interaction suite also mounts the actual Vue components and CodeMirror in
+JSDOM to exercise editing, resizing, selection, error navigation, and binary file
+input. These are runtime and DOM checks, not visual browser layout tests. The test runner
 uses VM modules and disables test-process isolation so its registered tests are
 reported individually.
