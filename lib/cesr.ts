@@ -1,24 +1,28 @@
 import {
   Counter, Indexer, Matter, OpaqueSpan,
   INDEXER_CODE_NAMES, INDEXER_SIZES, MATTER_SIZES,
-  isCounterGroupLike, parseAttachmentGroup, parseBytes,
+  isCounterGroupLike, isGroupTuple, parseAttachmentGroup, parseBytes,
   parseIndexer, parseMatter, renderAnnotatedFrames, resolveCounterSizeTable,
 } from 'cesr-ts';
 
-import { entrySourceLinker, linkStreamSources, primitiveRanges } from './source-locations.js';
-import { labelFields } from './field-labels.js';
+import type { CesrFrame, GroupEntry, Primitive } from 'cesr-ts';
+import type { InspectionNode, InspectionOptions, InspectionResult, PrimitiveMetadata } from './types.ts';
+
+import { entrySourceLinker, linkStreamSources, primitiveRanges } from './source-locations.ts';
+import { labelFields } from './field-labels.ts';
 
 const encoder = new TextEncoder();
+const indexerNames: Readonly<Record<string, string>> = INDEXER_CODE_NAMES;
 
-function primitiveNode(value) {
+function primitiveNode(value: Primitive): InspectionNode {
   const counter = value instanceof Counter;
   const indexed = value instanceof Indexer;
   const sizes = counter ? resolveCounterSizeTable(value.version) : indexed ? INDEXER_SIZES : MATTER_SIZES;
   const size = sizes.get(value.code);
-  const meta = {
+  const meta: PrimitiveMetadata = {
     Family: counter ? 'Counter' : indexed ? 'Indexed signature' : 'Matter',
     Code: value.code,
-    Name: indexed ? INDEXER_CODE_NAMES[value.code] : value.name,
+    Name: indexed ? indexerNames[value.code] : value.name,
     'Code length': size ? size.hs + size.ss : value.code.length,
     'Text length': value.fullSize,
     'Binary length': value.fullSizeB2,
@@ -34,8 +38,8 @@ function primitiveNode(value) {
   return { kind: 'primitive', value: value.qb64, meta };
 }
 
-function entryNode(entry) {
-  if (Array.isArray(entry)) return { kind: 'group', label: 'Tuple', children: entry.map(entryNode) };
+function entryNode(entry: GroupEntry): InspectionNode {
+  if (isGroupTuple(entry)) return { kind: 'group', label: 'Tuple', children: entry.map(entryNode) };
   if (entry instanceof OpaqueSpan) {
     return { kind: 'value', value: `Opaque ${entry.domain} payload (${entry.raw.length} bytes)` };
   }
@@ -44,7 +48,7 @@ function entryNode(entry) {
   return node;
 }
 
-function dataNode(value, label) {
+function dataNode(value: unknown, label: string): InspectionNode {
   if (value !== null && typeof value === 'object') {
     if (value instanceof Uint8Array) {
       return { kind: 'value', label, value: `0x${Array.from(value, b => b.toString(16).padStart(2, '0')).join('')}` };
@@ -65,7 +69,7 @@ function dataNode(value, label) {
   return { kind: 'value', label, value: typeof value === 'bigint' ? value.toString() : JSON.stringify(value) };
 }
 
-function frameNode(frame, index) {
+function frameNode(frame: CesrFrame, index: number): InspectionNode {
   const body = dataNode(frame.body.ked, 'Body');
   labelFields(body, frame.body.proto, frame.body.ked?.t);
   return {
@@ -74,14 +78,14 @@ function frameNode(frame, index) {
     children: [
       body,
       { kind: 'group', label: 'Attachments', children: frame.attachments.map(entryNode) },
-      ...(frame.essrs?.length ? [{ kind: 'group', label: 'ESSR payloads', children: frame.essrs.map(entryNode) }] : []),
-      ...(frame.nests?.length ? [{ kind: 'group', label: 'Nested messages', children: frame.nests.map(frameNode) }] : []),
+      ...(frame.essrs?.length ? [{ kind: 'group' as const, label: 'ESSR payloads', children: frame.essrs.map(entryNode) }] : []),
+      ...(frame.nests?.length ? [{ kind: 'group' as const, label: 'Nested messages', children: frame.nests.map(frameNode) }] : []),
     ],
   };
 }
 
 /** Parsing and code tables belong to cesr-ts. This module only adapts its output. */
-export function inspectCesr(input, { mode = 'stream', domain = 'txt', major = 1 } = {}) {
+export function inspectCesr(input: string | Uint8Array, { mode = 'stream', domain = 'txt', major = 1 }: InspectionOptions = {}): InspectionResult {
   const bytes = typeof input === 'string' ? encoder.encode(input) : input;
   if (!(bytes instanceof Uint8Array)) throw new TypeError('Expected text or bytes.');
   if (!bytes.length) throw new Error('Enter CESR data or choose a file.');
@@ -98,18 +102,18 @@ export function inspectCesr(input, { mode = 'stream', domain = 'txt', major = 1 
   if (!['matter', 'indexer', 'attachments'].includes(mode)) throw new Error('Unknown inspection mode.');
   if (!['txt', 'bny'].includes(domain)) throw new Error('Unknown encoding domain.');
   if (![1, 2].includes(major)) throw new Error('Unsupported CESR table version.');
-  const nodes = [];
+  const nodes: InspectionNode[] = [];
   const linkEntry = mode === 'attachments' ? entrySourceLinker(bytes) : null;
   let offset = 0;
   while (offset < bytes.length) {
     const tail = bytes.subarray(offset);
-    let consumed, node;
+    let consumed: number, node: InspectionNode;
     try {
       if (mode === 'attachments') {
         const parsed = parseAttachmentGroup(tail, { major, minor: 0 }, domain);
         consumed = parsed.consumed;
         node = entryNode(parsed.group);
-        linkEntry(parsed.group, node, { start: offset, end: offset + consumed });
+        linkEntry!(parsed.group, node, { start: offset, end: offset + consumed });
       } else {
         const value = mode === 'indexer' ? parseIndexer(tail, domain) : parseMatter(tail, domain);
         consumed = domain === 'txt' ? value.fullSize : value.fullSizeB2;
@@ -117,7 +121,10 @@ export function inspectCesr(input, { mode = 'stream', domain = 'txt', major = 1 
         node.source = { start: offset, end: offset + consumed };
       }
     } catch (cause) {
-      if (Number.isSafeInteger(cause.offset)) cause.sourceOffset = offset + cause.offset;
+      if (cause && typeof cause === 'object' && 'offset' in cause
+        && typeof cause.offset === 'number' && Number.isSafeInteger(cause.offset)) {
+        Object.assign(cause, { sourceOffset: offset + cause.offset });
+      }
       throw cause;
     }
     if (consumed <= 0 || consumed > tail.length) throw new Error('Parser returned an invalid consumed size.');
@@ -127,4 +134,4 @@ export function inspectCesr(input, { mode = 'stream', domain = 'txt', major = 1 
   return { byteLength: bytes.length, nodes, annotations: '', highlights: primitiveRanges(nodes) };
 }
 
-export { describeInspectionError } from './inspection-error.js';
+export { describeInspectionError } from './inspection-error.ts';

@@ -46,16 +46,22 @@
   </section>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, watch } from 'vue';
-const props = defineProps({ result: { type: Object, default: null }, error: { type: String, default: '' }, errorLocation: { type: Object, default: null } });
-const emit = defineEmits(['locate']);
-const selected = ref(null);
+import type { InspectionNode, InspectionResult, SourceTarget } from '~/lib/types.ts';
+
+const props = withDefaults(defineProps<{
+  result?: InspectionResult | null;
+  error?: string;
+  errorLocation?: SourceTarget | null;
+}>(), { result: null, error: '', errorLocation: null });
+const emit = defineEmits<{ locate: [range: SourceTarget | null] }>();
+const selected = ref<InspectionNode | null>(null);
 const showLabels = ref(true);
-const view = ref('structure');
+const view = ref<'structure' | 'wire'>('structure');
 const copied = ref(false);
 const copyError = ref('');
-function select(node) {
+function select(node: InspectionNode | null) {
   selected.value = node;
   copied.value = false;
   copyError.value = '';
@@ -69,6 +75,7 @@ watch(() => props.result, () => {
 });
 async function copyToClipboard() {
   const node = selected.value;
+  if (!node) return;
   copyError.value = '';
   try {
     await navigator.clipboard.writeText(String(node.value ?? node.label));

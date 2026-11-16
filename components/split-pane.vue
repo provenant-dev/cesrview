@@ -10,37 +10,37 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { onMounted, ref } from 'vue';
-const root = ref(null);
+const root = ref<HTMLElement | null>(null);
 const width = ref(38);
 const dragging = ref(false);
 const preference = 'cesr-viewer-input-width';
-function setWidth(value) {
+function setWidth(value: number) {
   width.value = Math.round(Math.max(25, Math.min(70, value)));
   try { localStorage.setItem(preference, String(width.value)); } catch { /* Storage is optional. */ }
 }
-function startDrag(event) {
+function startDrag(event: PointerEvent) {
   if (event.button !== 0) return;
   dragging.value = true;
-  event.currentTarget.setPointerCapture(event.pointerId);
+  if (event.currentTarget instanceof HTMLElement) event.currentTarget.setPointerCapture(event.pointerId);
   event.preventDefault();
 }
-function move(event) {
-  if (!dragging.value) return;
+function move(event: PointerEvent) {
+  if (!dragging.value || !root.value) return;
   const bounds = root.value.getBoundingClientRect();
   setWidth(100 * (event.clientX - bounds.left) / bounds.width);
 }
-function stopDrag(event) {
+function stopDrag(event: PointerEvent) {
   dragging.value = false;
-  if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+  if (event.currentTarget instanceof HTMLElement && event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
 }
-function resizeWithKey(event) {
+function resizeWithKey(event: KeyboardEvent) {
   const step = event.shiftKey ? 10 : 2;
-  const sizes = { ArrowLeft: width.value - step, ArrowRight: width.value + step, Home: 25, End: 70 };
+  const sizes: Record<string, number> = { ArrowLeft: width.value - step, ArrowRight: width.value + step, Home: 25, End: 70 };
   if (!(event.key in sizes)) return;
   event.preventDefault();
-  setWidth(sizes[event.key]);
+  setWidth(sizes[event.key]!);
 }
 onMounted(() => {
   try {

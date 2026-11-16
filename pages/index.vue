@@ -81,27 +81,28 @@
   </main>
 </template>
 
-<script setup>
+<script setup lang="ts">
+import type { CesrExample, EncodingDomain, InspectionMode, InspectionResult, SourceTarget, TableMajor } from '~/lib/types.ts';
 import { computed, ref } from 'vue';
-import { inspectCesr, describeInspectionError } from '~/lib/cesr.js';
-import { readableText } from '~/lib/source-locations.js';
-import { CESR_EXAMPLE, CESR_EXAMPLES, exampleInput } from '~/lib/cesr-example.js';
+import { inspectCesr, describeInspectionError } from '~/lib/cesr.ts';
+import { readableText } from '~/lib/source-locations.ts';
+import { CESR_EXAMPLE, CESR_EXAMPLES, exampleInput } from '~/lib/cesr-example.ts';
 
 const inputData = ref(CESR_EXAMPLE);
-const loadedExample = ref(CESR_EXAMPLES[0]);
+const loadedExample = ref<CesrExample | null>(CESR_EXAMPLES[0]!);
 const exampleGroups = [...new Set(CESR_EXAMPLES.map(example => example.group))]
   .map(label => ({ label, examples: CESR_EXAMPLES.filter(example => example.group === label) }));
-const fileInput = ref(null);
-const fileBytes = ref(null);
+const fileInput = ref<HTMLInputElement | null>(null);
+const fileBytes = ref<Uint8Array | null>(null);
 const fileName = ref('');
 const loadingFile = ref(false);
-const mode = ref('stream');
-const domain = ref('txt');
-const major = ref(1);
-const result = ref(null);
+const mode = ref<InspectionMode>('stream');
+const domain = ref<EncodingDomain>('txt');
+const major = ref<TableMajor>(1);
+const result = ref<InspectionResult | null>(null);
 const error = ref('');
-const errorLocation = ref(null);
-const sourceTarget = ref(null);
+const errorLocation = ref<SourceTarget | null>(null);
+const sourceTarget = ref<SourceTarget | null>(null);
 const showHex = ref(false);
 const fileText = computed(() => fileBytes.value ? readableText(fileBytes.value) : null);
 const inputSize = computed(() => fileBytes.value?.byteLength ?? new TextEncoder().encode(inputData.value).length);
@@ -124,12 +125,12 @@ function clearFile() {
   resetOutput();
 }
 
-function editInput(value) {
+function editInput(value: string) {
   inputData.value = value;
   clearFile();
 }
 
-function locateSource(range) {
+function locateSource(range: SourceTarget | null) {
   sourceTarget.value = range ? { ...range } : null;
 }
 
@@ -138,8 +139,10 @@ function clearInput() {
   inputData.value = '';
 }
 
-function selectExample(event) {
-  const example = CESR_EXAMPLES.find(example => example.id === event.target.value);
+function selectExample(event: Event) {
+  const target = event.target;
+  if (!(target instanceof HTMLSelectElement)) return;
+  const example = CESR_EXAMPLES.find(example => example.id === target.value);
   if (!example) return;
   clearFile();
   mode.value = example.mode;
@@ -155,11 +158,12 @@ function selectExample(event) {
   }
   showHex.value = example.domain === 'bny';
   loadedExample.value = example;
-  event.target.value = '';
+  target.value = '';
   processInput();
 }
 
-async function loadFile(event) {
+async function loadFile(event: Event) {
+  if (!(event.target instanceof HTMLInputElement)) return;
   const file = event.target.files?.[0];
   const read = ++fileRead;
   loadedExample.value = null;
@@ -177,7 +181,7 @@ async function loadFile(event) {
     showHex.value = false;
     inputData.value = '';
   } catch (cause) {
-    if (read === fileRead) error.value = `Could not read file: ${cause.message}`;
+    if (read === fileRead) error.value = `Could not read file: ${cause instanceof Error ? cause.message : String(cause)}`;
   } finally {
     if (read === fileRead) loadingFile.value = false;
   }

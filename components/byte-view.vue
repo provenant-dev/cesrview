@@ -18,13 +18,14 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-const props = defineProps({ bytes: { type: Uint8Array, required: true }, target: { type: Object, default: null } });
+import type { SourceTarget } from '~/lib/types.ts';
+const props = withDefaults(defineProps<{ bytes: Uint8Array; target?: SourceTarget | null }>(), { target: null });
 const page = ref(0);
 const pageSize = 256;
 const pages = computed(() => Math.max(1, Math.ceil(props.bytes.length / pageSize)));
-const isError = computed(() => ['error', 'end'].includes(props.target?.kind));
+const isError = computed(() => props.target?.kind === 'error' || props.target?.kind === 'end');
 const rows = computed(() => {
   const result = [];
   for (let offset = page.value * pageSize; offset < Math.min(props.bytes.length, (page.value + 1) * pageSize); offset += 16) {
@@ -32,7 +33,7 @@ const rows = computed(() => {
   }
   return result;
 });
-function includes(offset) { return props.target && offset >= props.target.start && offset < props.target.end; }
+function includes(offset: number) { return props.target && offset >= props.target.start && offset < props.target.end; }
 watch(() => props.bytes, () => { page.value = 0; });
 watch(() => props.target, target => {
   if (target) page.value = Math.min(pages.value - 1, Math.floor(target.start / pageSize));

@@ -12,8 +12,6 @@
     </div>
   </div>
 </template>
-<script>
-export default {
-  props: ['title', 'value', 'id', 'parentID']
-}
+<script setup lang="ts">
+defineProps<{ title: string; value: string; id: string; parentID: string }>();
 </script>

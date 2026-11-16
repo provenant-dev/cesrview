@@ -25,11 +25,13 @@
   </div>
 </template>
 
-<script setup>
-defineProps({
-  node: { type: Object, required: true },
-  selected: { type: Object, default: null },
-  showLabels: { type: Boolean, default: true },
-});
-defineEmits(['select']);
+<script setup lang="ts">
+import type { InspectionNode } from '~/lib/types.ts';
+
+withDefaults(defineProps<{
+  node: InspectionNode;
+  selected?: InspectionNode | null;
+  showLabels?: boolean;
+}>(), { selected: null, showLabels: true });
+defineEmits<{ select: [node: InspectionNode] }>();
 </script>

@@ -1,11 +1,14 @@
+import type { Range } from '@codemirror/state';
+import type { DecorationSet } from '@codemirror/view';
+import type { SourceRange, SourceTarget } from './types.ts';
 import { StateEffect, StateField } from '@codemirror/state';
 import { Decoration, EditorView, WidgetType } from '@codemirror/view';
-import { byteToCharacter, utf8Offsets } from './source-locations.js';
+import { byteToCharacter, utf8Offsets } from './source-locations.ts';
 
-export function characterRange(text, range, offsets = utf8Offsets(text)) {
-  const from = byteToCharacter(offsets, Math.min(range.start, offsets.at(-1)));
-  let to = byteToCharacter(offsets, Math.min(range.end, offsets.at(-1)));
-  if (offsets[to] < range.end && to < text.length) to += text.codePointAt(to) > 0xffff ? 2 : 1;
+export function characterRange(text: string, range: SourceRange, offsets = utf8Offsets(text)) {
+  const from = byteToCharacter(offsets, Math.min(range.start, offsets.at(-1)!));
+  let to = byteToCharacter(offsets, Math.min(range.end, offsets.at(-1)!));
+  if (offsets[to]! < range.end && to < text.length) to += text.codePointAt(to)! > 0xffff ? 2 : 1;
   return { from, to };
 }
 
@@ -17,8 +20,8 @@ class EndMarker extends WidgetType {
     return span;
   }
 }
-export const setHighlights = StateEffect.define();
-export const sourceHighlights = StateField.define({
+export const setHighlights = StateEffect.define<{ ranges?: SourceRange[]; target?: SourceTarget | null }>();
+export const sourceHighlights = StateField.define<DecorationSet>({
   create: () => Decoration.none,
   update(decorations, transaction) {
     if (transaction.docChanged) decorations = Decoration.none;
@@ -26,7 +29,7 @@ export const sourceHighlights = StateField.define({
       if (!effect.is(setHighlights)) continue;
       const text = transaction.state.doc.toString();
       const offsets = utf8Offsets(text);
-      const marks = [];
+      const marks: Range<Decoration>[] = [];
       for (const range of effect.value.ranges ?? []) {
         const { from, to } = characterRange(text, range, offsets);
         if (to > from) marks.push(Decoration.mark({ class: 'source-cesr' }).range(from, to));

@@ -1,3 +1,4 @@
+import type { CesrExample } from './types.ts';
 import events from './cesr-example-events.json' with { type: 'json' };
 
 // Public KERIpy inception fixture, Apache-2.0:
@@ -5,12 +6,12 @@ import events from './cesr-example-events.json' with { type: 'json' };
 // Keep the compact serialization intact: the version field includes its byte size.
 export const CESR_EXAMPLE = '{"v":"KERI10JSON00012b_","t":"icp","d":"EIcca2-uqsicYK7-q5gxlZXuzOkqrNSL3JIaLflSOOgF","i":"DNG2arBDtHK_JyHRAq-emRdC6UM-yIpCAeJIWDiXp4Hx","s":"0","kt":"1","k":["DNG2arBDtHK_JyHRAq-emRdC6UM-yIpCAeJIWDiXp4Hx"],"nt":"1","n":["EFXIx7URwmw7AVQTBcMxPXfOOJ2YYA1SJAam69DXV8D2"],"bt":"0","b":[],"c":[],"a":[]}';
 
-// Generated once by build/example-events.mjs, never signed in the browser.
-const inception = JSON.parse(events[0].body);
-const signature = events[0].signature;
-const signed = event => event.body + '-AAB' + event.signature;
+// Generated once by build/example-events.ts, never signed in the browser.
+const inception = JSON.parse(events[0]!.body) as { k: [string]; d: string };
+const signature = events[0]!.signature;
+const signed = (event: { body: string; signature: string }) => event.body + '-AAB' + event.signature;
 
-export const CESR_EXAMPLES = [
+export const CESR_EXAMPLES: CesrExample[] = [
   {
     id: 'keripy-inception', label: 'KERI inception body', group: 'Message streams',
     description: 'KERIpy reference event in compact JSON, without signature attachments.',
@@ -19,7 +20,7 @@ export const CESR_EXAMPLES = [
   {
     id: 'signed-inception', label: 'Signed inception', group: 'Message streams',
     description: 'A KERI inception with one Ed25519 controller signature. Uses public demo keys.',
-    mode: 'stream', domain: 'txt', major: 1, text: signed(events[0]),
+    mode: 'stream', domain: 'txt', major: 1, text: signed(events[0]!),
   },
   {
     id: 'key-event-stream', label: 'Inception → rotation → interaction', group: 'Message streams',
@@ -58,7 +59,7 @@ export const CESR_EXAMPLES = [
   },
 ];
 
-export function exampleInput(example) {
+export function exampleInput(example: CesrExample) {
   if (example.domain === 'txt') return example.text;
   return Uint8Array.from(atob(example.text.replace(/-/g, '+').replace(/_/g, '/')), char => char.charCodeAt(0));
 }
