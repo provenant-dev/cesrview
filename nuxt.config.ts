@@ -1,6 +1,12 @@
-// https://nuxt.com/docs/api/configuration/nuxt-config
+import { cesrBrowserEntry, cesrBrowserPlugin } from './build/cesr-browser.mjs';
+
 export default defineNuxtConfig({
   ssr: false,
+  vite: {
+    resolve: { alias: [{ find: /^cesr-ts$/, replacement: cesrBrowserEntry }] },
+    optimizeDeps: { exclude: ['cesr-ts'] },
+    plugins: [cesrBrowserPlugin()],
+  },
   app: {
     baseURL: '/',
     head: {
