@@ -136,9 +136,10 @@ export function inspectCesr(input: string | Uint8Array, { mode = 'stream', domai
         node.source = { start: offset, end: offset + consumed };
       }
     } catch (cause) {
-      if (cause && typeof cause === 'object' && 'offset' in cause
-        && typeof cause.offset === 'number' && Number.isSafeInteger(cause.offset)) {
-        Object.assign(cause, { sourceOffset: offset + cause.offset });
+      // cesr-ts often omits `offset`; the failing item still starts here.
+      if (cause && typeof cause === 'object') {
+        const inner = 'offset' in cause && Number.isSafeInteger(cause.offset) ? cause.offset as number : 0;
+        Object.assign(cause, { sourceOffset: offset + inner });
       }
       throw cause;
     }

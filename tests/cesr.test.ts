@@ -1,7 +1,7 @@
 import fixtures from './fixtures/nested.json' with { type: 'json' };
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { inspectCesr } from '../lib/cesr.ts';
+import { describeInspectionError, inspectCesr } from '../lib/cesr.ts';
 
 import type { InspectionNode, InspectionResult } from '../lib/types.ts';
 
@@ -114,3 +114,21 @@ for (const row of fixtures.rows) {
     }
   });
 }
+
+test('errors locate the failing primitive and explain reformatted JSON bodies', () => {
+  const failure = (input: string, options = {}) => {
+    try { inspectCesr(input, options); } catch (cause) { return describeInspectionError(cause, input); }
+    throw new Error('Expected a parse failure.');
+  };
+  const key = 'DIqI4910CfGV_VLbM1Z2FNFdkHYAJGBXGqdfZP-A4O5a';
+  assert.equal(failure(key + '\n', { mode: 'matter' }).locationLabel, 'Error at byte 44');
+  assert.equal(failure(key + ' ' + key, { mode: 'matter' }).locationLabel, 'Error at byte 44');
+  assert.equal(failure('!' + key, { mode: 'matter' }).locationLabel, 'Error at byte 0');
+
+  const body = message({ note: 'x' });
+  const pretty = JSON.stringify(JSON.parse(body), null, 2);
+  const reformatted = failure(pretty);
+  assert.match(reformatted.message, new RegExp(`says ${body.length} bytes but the JSON body is ${pretty.length} bytes`));
+  assert.ok(reformatted.location);
+  assert.doesNotMatch(failure(body.replace('"x"', 'x00')).message, /reformatted/);
+});
