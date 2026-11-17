@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { inspectCesr } from '../lib/cesr.ts';
 import { CESR_EXAMPLE } from '../lib/cesr-example.ts';
-import { readableText, utf8Offsets, byteToCharacter } from '../lib/source-locations.ts';
+import { readableText, utf8Offsets, byteToCharacter, primitiveRanges } from '../lib/source-locations.ts';
 import { characterRange, setHighlights, sourceHighlights } from '../lib/editor-highlights.ts';
 import { EditorState } from '@codemirror/state';
 
@@ -122,4 +122,23 @@ test('display metadata never changes sample bytes or parsed semantics', () => {
   assert.deepEqual(input, snapshot);
   assert.equal(result.byteLength, 299);
   assert.equal(result.highlights.length, 4);
+});
+
+test('highlight collection sorts nested primitive ranges and preserves equal-offset order', () => {
+  const meta = inspectCesr('4AABtest', { mode: 'matter' }).nodes[0]!.meta!;
+  const first = { start: 4, end: 12 }, nested = { start: 4, end: 8 }, last = { start: 20, end: 24 };
+  const nodes: InspectionNode[] = [
+    { kind: 'primitive', meta, source: last },
+    { kind: 'group', source: { start: 0, end: 30 }, children: [
+      { kind: 'primitive', meta, source: first, children: [
+        { kind: 'primitive', meta, source: nested },
+        { kind: 'primitive', meta },
+      ] },
+    ] },
+  ];
+  const ranges = primitiveRanges(nodes);
+  assert.deepEqual(ranges, [first, nested, last]);
+  assert.equal(ranges[0], first);
+  assert.equal(nodes[0]!.source, last);
+  assert.deepEqual(primitiveRanges([]), []);
 });

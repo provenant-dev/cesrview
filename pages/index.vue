@@ -35,6 +35,7 @@
               <span class="input-count"><button v-if="fileBytes && fileText !== null" type="button" class="text-button" @click="showHex = !showHex">{{ showHex ? 'Text view' : 'Hex view' }}</button>{{ inputSize.toLocaleString() }} bytes</span>
             </div>
             <p v-if="loadedExample" class="example-description">{{ loadedExample.description }}</p>
+            <p v-else-if="fileBytes && fileBytes.byteLength > MAX_TEXT_PREVIEW_BYTES" class="example-description">Large input shown as paged bytes. Inspect decodes the whole input.</p>
             <div class="source-editor">
               <template v-if="fileBytes">
                 <LazySourceEditor v-if="fileText !== null && !showHex" :model-value="fileText" readonly
@@ -42,7 +43,7 @@
                 <ByteView v-else :bytes="fileBytes" :target="sourceTarget" />
               </template>
               <LazySourceEditor v-else :model-value="inputData" :ranges="result?.highlights" :target="sourceTarget"
-                @update:model-value="editInput" @inspect="processInput" />
+                @update:model-value="editInput" @inspect="processInput" @reject="rejectInput" />
             </div>
             <div v-if="sourceTarget" class="source-location" role="status">
               {{ sourceTarget.kind === 'end' ? `End of input at byte ${sourceTarget.start}` : `Bytes ${sourceTarget.start}–${Math.max(sourceTarget.start, sourceTarget.end - 1)}` }}
@@ -63,12 +64,13 @@
                 </optgroup>
               </select>
               <button type="button" class="text-button" :disabled="!inputData && !fileBytes && !loadingFile" @click="clearInput">Clear</button>
-              <button type="submit" class="button button-primary" :disabled="loadingFile || (!inputData && !fileBytes)" title="Inspect (⌘ / Ctrl + Enter)">Inspect</button>
+              <button v-if="processing" type="button" class="button" @click="resetOutput">Cancel</button>
+              <button type="submit" class="button button-primary" :disabled="processing || loadingFile || (!inputData && !fileBytes)" title="Inspect (⌘ / Ctrl + Enter)">{{ processing ? 'Inspecting…' : 'Inspect' }}</button>
             </div>
           </form>
         </section>
       </template>
-      <PreviewField :result="result" :error="error" :error-location="errorLocation" @locate="locateSource" />
+      <PreviewField :result="result" :error="error" :error-location="errorLocation" :busy="processing" @locate="locateSource" />
     </SplitPane>
 
     <footer class="viewer-footer">
@@ -83,8 +85,9 @@
 
 <script setup lang="ts">
 import type { CesrExample, EncodingDomain, InspectionMode, InspectionResult, SourceTarget, TableMajor } from '~/lib/types.ts';
-import { computed, ref } from 'vue';
-import { inspectCesr, describeInspectionError } from '~/lib/cesr.ts';
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef } from 'vue';
+import { createInspector } from '~/lib/inspection-client.ts';
+import { assertInputSize, MAX_TEXT_PREVIEW_BYTES, textByteLength } from '~/lib/inspection-limits.ts';
 import { readableText } from '~/lib/source-locations.ts';
 import { CESR_EXAMPLE, CESR_EXAMPLES, exampleInput } from '~/lib/cesr-example.ts';
 
@@ -99,20 +102,31 @@ const loadingFile = ref(false);
 const mode = ref<InspectionMode>('stream');
 const domain = ref<EncodingDomain>('txt');
 const major = ref<TableMajor>(1);
-const result = ref<InspectionResult | null>(null);
+const result = shallowRef<InspectionResult | null>(null);
+const processing = ref(false);
+const inspector = createInspector();
+let inspection = 0;
 const error = ref('');
 const errorLocation = ref<SourceTarget | null>(null);
 const sourceTarget = ref<SourceTarget | null>(null);
 const showHex = ref(false);
-const fileText = computed(() => fileBytes.value ? readableText(fileBytes.value) : null);
-const inputSize = computed(() => fileBytes.value?.byteLength ?? new TextEncoder().encode(inputData.value).length);
+const fileText = computed(() => fileBytes.value && fileBytes.value.byteLength <= MAX_TEXT_PREVIEW_BYTES ? readableText(fileBytes.value) : null);
+const inputSize = computed(() => fileBytes.value?.byteLength ?? textByteLength(inputData.value));
 let fileRead = 0;
 
 function resetOutput() {
+  inspection++;
+  inspector.cancel();
+  processing.value = false;
   result.value = null;
   error.value = '';
   errorLocation.value = null;
   sourceTarget.value = null;
+}
+
+function rejectInput(message: string) {
+  resetOutput();
+  error.value = message;
 }
 
 function clearFile() {
@@ -126,8 +140,13 @@ function clearFile() {
 }
 
 function editInput(value: string) {
-  inputData.value = value;
   clearFile();
+  if (value.length > MAX_TEXT_PREVIEW_BYTES || textByteLength(value) > MAX_TEXT_PREVIEW_BYTES) {
+    fileBytes.value = new TextEncoder().encode(value);
+    fileName.value = 'Pasted input';
+    inputData.value = '';
+    showHex.value = true;
+  } else inputData.value = value;
 }
 
 function locateSource(range: SourceTarget | null) {
@@ -174,8 +193,10 @@ async function loadFile(event: Event) {
   if (!file) return;
   loadingFile.value = true;
   try {
+    assertInputSize(file.size);
     const bytes = new Uint8Array(await file.arrayBuffer());
     if (read !== fileRead) return;
+    assertInputSize(bytes);
     fileBytes.value = bytes;
     fileName.value = file.name;
     showHex.value = false;
@@ -187,23 +208,29 @@ async function loadFile(event: Event) {
   }
 }
 
-function processInput() {
+async function processInput() {
   if (loadingFile.value) return;
   resetOutput();
-  try {
-    if (mode.value !== 'stream' && domain.value === 'bny' && !fileBytes.value) {
-      throw new Error('Choose a binary file for qb2 input.');
-    }
-    result.value = inspectCesr(fileBytes.value ?? inputData.value, {
-      mode: mode.value, domain: domain.value, major: major.value,
-    });
-  } catch (cause) {
-    const failure = describeInspectionError(cause, fileBytes.value ?? inputData.value);
+  if (mode.value !== 'stream' && domain.value === 'bny' && !fileBytes.value) {
+    error.value = 'Choose a binary file for qb2 input.';
+    return;
+  }
+  const request = inspection;
+  processing.value = true;
+  const response = await inspector.inspect(fileBytes.value ?? inputData.value, {
+    mode: mode.value, domain: domain.value, major: major.value,
+  });
+  if (request !== inspection || !response) return;
+  processing.value = false;
+  if ('result' in response) result.value = response.result;
+  else {
+    const failure = response.failure;
     error.value = failure.message;
     errorLocation.value = failure.location;
     sourceTarget.value = failure.location;
   }
 }
 
-processInput();
+onMounted(processInput);
+onBeforeUnmount(() => { fileRead++; inspector.cancel(); });
 </script>

@@ -11,6 +11,7 @@ import { json } from '@codemirror/lang-json';
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
 import { tags } from '@lezer/highlight';
 import { characterRange, setHighlights, sourceHighlights } from '~/lib/editor-highlights.ts';
+import { assertInputSize } from '~/lib/inspection-limits.ts';
 
 const props = withDefaults(defineProps<{
   modelValue?: string;
@@ -18,7 +19,7 @@ const props = withDefaults(defineProps<{
   ranges?: SourceRange[];
   target?: SourceTarget | null;
 }>(), { modelValue: '', readonly: false, ranges: () => [], target: null });
-const emit = defineEmits<{ 'update:modelValue': [value: string]; inspect: [] }>();
+const emit = defineEmits<{ 'update:modelValue': [value: string]; inspect: []; reject: [message: string] }>();
 const host = ref<HTMLDivElement | null>(null);
 const editable = new Compartment();
 let view: EditorView | undefined;
@@ -43,6 +44,16 @@ onMounted(() => {
       extensions: [
         // Preserve CR bytes and Unicode separators in the original source.
         EditorState.lineSeparator.of('\n'),
+        EditorState.transactionFilter.of(transaction => {
+          if (transaction.docChanged) {
+            try { assertInputSize(transaction.newDoc.toString()); }
+            catch (cause) {
+              emit('reject', cause instanceof Error ? cause.message : 'Input is too large.');
+              return [];
+            }
+          }
+          return transaction;
+        }),
         editable.of([EditorState.readOnly.of(props.readonly), EditorView.editable.of(!props.readonly)]),
         EditorView.contentAttributes.of({ id: 'input-textarea', 'aria-label': 'CESR input', spellcheck: 'false', autocapitalize: 'off', autocorrect: 'off' }),
         lineNumbers(), drawSelection(), history(), EditorView.lineWrapping,

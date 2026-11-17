@@ -49,8 +49,25 @@ export function readableText(bytes: Uint8Array) {
 
 /** Locate exact, complete wire values. Ambiguous matches are deliberately omitted. */
 function matcher(bytes: Uint8Array) {
-  const wire = byteString(bytes);
+  let wire: string | undefined;
   return (records: SourceMatch[], scope: SourceRange = { start: 0, end: bytes.length }, excluded: SourceRange[] = []) => {
+    if (!records.length) return;
+    wire ??= byteString(bytes);
+    const blocked: SourceRange[] = [];
+    for (const range of [...excluded].sort((a, b) => a.start - b.start)) {
+      const last = blocked.at(-1);
+      if (last && range.start <= last.end) last.end = Math.max(last.end, range.end);
+      else blocked.push({ ...range });
+    }
+    function isBlocked(start: number, end: number) {
+      let lo = 0, hi = blocked.length;
+      while (lo < hi) {
+        const mid = (lo + hi) >>> 1;
+        if (blocked[mid]!.end <= start) lo = mid + 1;
+        else hi = mid;
+      }
+      return lo < blocked.length && blocked[lo]!.start < end;
+    }
     const groups = new Map<string, { patterns: string[]; records: SourceMatch[] }>();
     for (const record of records) {
       const patterns = [...new Set(record.patterns.filter(p => p?.length).map(byteString))];
@@ -58,26 +75,36 @@ function matcher(bytes: Uint8Array) {
       if (!groups.has(key)) groups.set(key, { patterns, records: [] });
       groups.get(key)!.records.push(record);
     }
-    for (const { patterns, records: matches } of groups.values()) {
+    groups: for (const { patterns, records: matches } of groups.values()) {
       // Different message owners may have interleaved nested attachments.
       if (matches.some(record => record.owner !== matches[0]!.owner)) continue;
-      const found = new Map<string, SourceRange>();
+      const candidates: SourceRange[] = [];
       for (const pattern of patterns) {
         let cursor = scope.start;
+        let count = 0;
         while (cursor <= scope.end - pattern.length) {
           const start = wire.indexOf(pattern, cursor);
           if (start < 0 || start + pattern.length > scope.end) break;
           const end = start + pattern.length;
-          if (!excluded.some(r => start < r.end && end > r.start)
-            && ![...found.values()].some(r => start <= r.start && end >= r.end)) {
-            for (const [key, r] of found) if (r.start <= start && r.end >= end) found.delete(key);
-            found.set(`${start}:${end}`, { start, end });
+          if (!isBlocked(start, end)) {
+            // Matches of one pattern are disjoint. More occurrences than
+            // records remain ambiguous even after removing enclosing ranges.
+            if (++count > matches.length) continue groups;
+            candidates.push({ start, end });
           }
-          if (found.size > matches.length) break;
           cursor = end;
         }
       }
-      const ranges = [...found.values()].sort((a, b) => a.start - b.start);
+      // Keep the innermost alternatives with a sort and one scan, rather than
+      // rescanning every previous range for every occurrence (quadratic).
+      candidates.sort((a, b) => a.end - b.end || b.start - a.start);
+      const ranges: SourceRange[] = [];
+      let latestStart = -1;
+      for (const range of candidates) {
+        if (range.start <= latestStart) continue;
+        ranges.push(range);
+        latestStart = range.start;
+      }
       if (ranges.length !== matches.length || ranges.some((r, i) => i && r.start < ranges[i - 1]!.end)) continue;
       matches.forEach((record, index) => record.apply(ranges[index]!));
     }
@@ -160,8 +187,13 @@ export function linkStreamSources(frames: CesrFrame[], nodes: InspectionNode[], 
 }
 
 export function primitiveRanges(nodes: InspectionNode[]): SourceRange[] {
-  return nodes.flatMap(node => [
-    ...(node.meta && node.source ? [node.source] : []),
-    ...primitiveRanges(node.children ?? []),
-  ]).sort((a, b) => a.start - b.start);
+  const ranges: SourceRange[] = [];
+  function visit(nodes: InspectionNode[]) {
+    for (const node of nodes) {
+      if (node.meta && node.source) ranges.push(node.source);
+      if (node.children) visit(node.children);
+    }
+  }
+  visit(nodes);
+  return ranges.sort((a, b) => a.start - b.start);
 }

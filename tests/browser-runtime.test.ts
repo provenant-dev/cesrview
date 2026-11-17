@@ -28,7 +28,8 @@ test('browser bundle executes without Node globals or external imports', async (
   assert.equal(chunks.length, 1);
   assert.deepEqual(chunks[0]!.imports, []);
   assert.deepEqual(chunks[0]!.dynamicImports, []);
-  const context = vm.createContext({ TextEncoder, TextDecoder, Uint8Array, ArrayBuffer, DataView, RangeError, atob, btoa });
+  const context = vm.createContext({ TextEncoder, TextDecoder, Uint8Array, ArrayBuffer, DataView, RangeError, atob, btoa },
+    { codeGeneration: { strings: false, wasm: true } });
   const module = new vm.SourceTextModule(chunks[0]!.code, { context });
   await module.link(specifier => { throw new Error(`Unexpected runtime import: ${specifier}`); });
   await module.evaluate({ timeout: 5000 });
@@ -82,7 +83,8 @@ test('the actual recursive Vue template renders untrusted keys and values as tex
   const source = readFileSync(new URL('../components/cesr-node.vue', import.meta.url), 'utf8');
   const { descriptor } = parse(source);
   const render: Vue.RenderFunction = new Function('Vue', compile(descriptor.template!.content, { prefixIdentifiers: true }).code)(Vue);
-  const component = { name: 'CesrNode', props: ['node', 'selected', 'showLabels'], emits: ['select'], render };
+  const component = { name: 'CesrNode', props: ['node', 'selected', 'showLabels', 'depth'], emits: ['select'],
+    setup: () => ({ expanded: true, visible: 50, toggle: () => {}, preview: (value: string) => value }), render };
   const hostile = '<img src=x onerror=alert(1)>';
   const app = Vue.createSSRApp(component, {
     node: { label: hostile, value: hostile, children: [{ value: hostile, meta: { Code: 'A' } }] },

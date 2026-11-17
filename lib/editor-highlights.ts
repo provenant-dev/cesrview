@@ -27,6 +27,10 @@ export const sourceHighlights = StateField.define<DecorationSet>({
     if (transaction.docChanged) decorations = Decoration.none;
     for (const effect of transaction.effects) {
       if (!effect.is(setHighlights)) continue;
+      if (!effect.value.ranges?.length && !effect.value.target) {
+        decorations = Decoration.none;
+        continue;
+      }
       const text = transaction.state.doc.toString();
       const offsets = utf8Offsets(text);
       const marks: Range<Decoration>[] = [];

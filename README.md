@@ -20,6 +20,12 @@ The viewer includes syntax highlighting, resizable panes, readable field names,
 wire annotations, a binary hex view, and error locations where available.
 Specifications and learning links are under **Resources**.
 
+Inputs are limited to 100 MB (100,000,000 bytes), 100,000 messages, 1,000,000 decoded
+nodes, and 64 nesting levels. Decoding runs in a cancellable worker with a
+60-second timeout. Inputs over 2 MiB use the paged byte view, including large
+pastes. Large results appear in batches; expand nested groups to inspect their
+contents. The message and node limits can be reached before the byte limit.
+
 ## Development
 
 Requires Node.js 24.
@@ -42,6 +48,8 @@ npm run preview
 
 The static site is generated in `.output/public`. Pushes to `main` run type checks
 and tests, then deploy to GitHub Pages.
+Generated HTML includes a Content Security Policy with hashes for Nuxt's inline
+scripts. Regenerate the site after changing scripts; do not edit exported HTML.
 
 ## Parser limitations
 

@@ -10,6 +10,7 @@ import type { InspectionNode, InspectionOptions, InspectionResult, PrimitiveMeta
 
 import { entrySourceLinker, linkStreamSources, primitiveRanges } from './source-locations.ts';
 import { labelFields } from './field-labels.ts';
+import { assertInputSize, InspectionBudget } from './inspection-limits.ts';
 
 const encoder = new TextEncoder();
 const indexerNames: Readonly<Record<string, string>> = INDEXER_CODE_NAMES;
@@ -38,24 +39,29 @@ function primitiveNode(value: Primitive): InspectionNode {
   return { kind: 'primitive', value: value.qb64, meta };
 }
 
-function entryNode(entry: GroupEntry): InspectionNode {
-  if (isGroupTuple(entry)) return { kind: 'group', label: 'Tuple', children: entry.map(entryNode) };
+function entryNode(entry: GroupEntry, budget: InspectionBudget, depth: number): InspectionNode {
+  budget.take(depth);
+  if (isGroupTuple(entry)) return { kind: 'group', label: 'Tuple', children: entry.map(child => entryNode(child, budget, depth + 1)) };
   if (entry instanceof OpaqueSpan) {
     return { kind: 'value', value: `Opaque ${entry.domain} payload (${entry.raw.length} bytes)` };
   }
   const node = primitiveNode(entry);
-  if (isCounterGroupLike(entry)) node.children = entry.items.map(entryNode);
+  if (isCounterGroupLike(entry)) node.children = entry.items.map(child => entryNode(child, budget, depth + 1));
   return node;
 }
 
-function dataNode(value: unknown, label: string): InspectionNode {
+function dataNode(value: unknown, label: string, budget: InspectionBudget, depth: number): InspectionNode {
+  budget.take(depth);
   if (value !== null && typeof value === 'object') {
     if (value instanceof Uint8Array) {
       return { kind: 'value', label, value: `0x${Array.from(value, b => b.toString(16).padStart(2, '0')).join('')}` };
     }
+    if (Array.isArray(value)) budget.reserve(value.length);
+    const keys = Object.keys(value);
+    budget.reserve(keys.length);
     return {
       kind: 'group', label, value: Array.isArray(value) ? 'Array' : 'Object',
-      children: Object.entries(value).map(([key, child]) => dataNode(child, key)),
+      children: keys.map(key => dataNode((value as Record<string, unknown>)[key], key, budget, depth + 1)),
     };
   }
   // An embedded string is annotated only when ONE complete upstream Matter
@@ -69,33 +75,41 @@ function dataNode(value: unknown, label: string): InspectionNode {
   return { kind: 'value', label, value: typeof value === 'bigint' ? value.toString() : JSON.stringify(value) };
 }
 
-function frameNode(frame: CesrFrame, index: number): InspectionNode {
-  const body = dataNode(frame.body.ked, 'Body');
+function frameNode(frame: CesrFrame, index: number, budget: InspectionBudget, depth = 0): InspectionNode {
+  budget.message();
+  budget.take(depth);
+  const body = dataNode(frame.body.ked, 'Body', budget, depth + 1);
   labelFields(body, frame.body.proto, frame.body.ked?.t);
+  budget.take(depth + 1); // Attachments group.
+  if (frame.essrs?.length) budget.take(depth + 1);
+  if (frame.nests?.length) budget.take(depth + 1);
   return {
     kind: 'group', label: `Message ${index + 1}`,
     value: `${frame.body.proto} ${frame.body.kind} · ${frame.body.size} bytes`,
     children: [
       body,
-      { kind: 'group', label: 'Attachments', children: frame.attachments.map(entryNode) },
-      ...(frame.essrs?.length ? [{ kind: 'group' as const, label: 'ESSR payloads', children: frame.essrs.map(entryNode) }] : []),
-      ...(frame.nests?.length ? [{ kind: 'group' as const, label: 'Nested messages', children: frame.nests.map(frameNode) }] : []),
+      { kind: 'group', label: 'Attachments', children: frame.attachments.map(entry => entryNode(entry, budget, depth + 2)) },
+      ...(frame.essrs?.length ? [{ kind: 'group' as const, label: 'ESSR payloads', children: frame.essrs.map(entry => entryNode(entry, budget, depth + 2)) }] : []),
+      ...(frame.nests?.length ? [{ kind: 'group' as const, label: 'Nested messages', children: frame.nests.map((child, i) => frameNode(child, i, budget, depth + 2)) }] : []),
     ],
   };
 }
 
 /** Parsing and code tables belong to cesr-ts. This module only adapts its output. */
 export function inspectCesr(input: string | Uint8Array, { mode = 'stream', domain = 'txt', major = 1 }: InspectionOptions = {}): InspectionResult {
+  assertInputSize(input);
   const bytes = typeof input === 'string' ? encoder.encode(input) : input;
   if (!(bytes instanceof Uint8Array)) throw new TypeError('Expected text or bytes.');
   if (!bytes.length) throw new Error('Enter CESR data or choose a file.');
+  const budget = new InspectionBudget();
   if (mode === 'stream') {
     const frames = parseBytes(bytes);
     if (!frames.length) throw new Error('No complete messages found.');
+    // Bound the tree before annotation/source mapping can amplify its size.
+    const nodes = frames.map((frame, index) => frameNode(frame, index, budget));
     const annotations = renderAnnotatedFrames(frames, {
       commentMode: 'inline', indent: 2, pretty: true,
     }, bytes).map(frame => frame.lines.join('\n')).join('\n');
-    const nodes = frames.map(frameNode);
     linkStreamSources(frames, nodes, bytes);
     return { byteLength: bytes.length, nodes, annotations, highlights: primitiveRanges(nodes) };
   }
@@ -112,11 +126,12 @@ export function inspectCesr(input: string | Uint8Array, { mode = 'stream', domai
       if (mode === 'attachments') {
         const parsed = parseAttachmentGroup(tail, { major, minor: 0 }, domain);
         consumed = parsed.consumed;
-        node = entryNode(parsed.group);
+        node = entryNode(parsed.group, budget, 0);
         linkEntry!(parsed.group, node, { start: offset, end: offset + consumed });
       } else {
         const value = mode === 'indexer' ? parseIndexer(tail, domain) : parseMatter(tail, domain);
         consumed = domain === 'txt' ? value.fullSize : value.fullSizeB2;
+        budget.take(0);
         node = primitiveNode(value);
         node.source = { start: offset, end: offset + consumed };
       }

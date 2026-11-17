@@ -4,11 +4,13 @@ import type { DOMWindow } from 'jsdom';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import vm from 'node:vm';
+import { Worker as ThreadWorker } from 'node:worker_threads';
 import { fileURLToPath } from 'node:url';
 import { build } from 'vite';
 import vue from '@vitejs/plugin-vue';
 import { JSDOM, VirtualConsole } from 'jsdom';
 import { CESR_EXAMPLE, CESR_EXAMPLES, exampleInput } from '../lib/cesr-example.ts';
+import { MAX_INPUT_BYTES, MAX_TEXT_PREVIEW_BYTES } from '../lib/inspection-limits.ts';
 
 type ViewerWindow = DOMWindow & {
   viewerTest?: { app: App; nextTick: typeof nextTick; EditorView: typeof EditorView };
@@ -34,6 +36,7 @@ test('viewer connects editing, source selection, errors, labels, resizing and fi
   `;
   const output = await build({
     configFile: false, logLevel: 'silent',
+    worker: { format: 'es' },
     define: { 'process.env.NODE_ENV': '"production"' },
     resolve: { alias: [{ find: '~', replacement: root }] },
     plugins: [vue(), {
@@ -43,12 +46,43 @@ test('viewer connects editing, source selection, errors, labels, resizing and fi
     build: { write: false, minify: false, lib: { entry: 'virtual:viewer-test', formats: ['es'] } },
   });
   const errors: unknown[] = [];
+  const artifacts = [output].flat().flatMap(build => {
+    assert.ok('output' in build);
+    return build.output;
+  });
+  const workers = new Set<ThreadWorker>();
   const virtualConsole = new VirtualConsole();
   virtualConsole.on('jsdomError', error => errors.push(error));
   virtualConsole.on('error', error => errors.push(error));
   const dom = new JSDOM('<div id="app"></div>', {
     url: 'https://viewer.test/', runScripts: 'outside-only', pretendToBeVisual: true, virtualConsole,
     beforeParse(window) {
+      // Execute the actual Vite worker bundle in another thread. JSDOM has no
+      // Worker implementation; this bridge supplies the browser message API.
+      window.Worker = class {
+        onmessage?: (event: MessageEvent) => void;
+        onerror?: (event: { preventDefault: () => void }) => void;
+        thread: ThreadWorker;
+        constructor(url: URL) {
+          const asset = artifacts.find(item => item.type === 'asset' && String(url).endsWith(item.fileName));
+          assert.ok(asset?.type === 'asset', `Missing worker: ${url}`);
+          this.thread = new ThreadWorker(`
+            const { parentPort, workerData } = require('node:worker_threads');
+            const vm = require('node:vm');
+            const context = vm.createContext({ TextEncoder, TextDecoder, Uint8Array,
+              ArrayBuffer, DataView, RangeError, atob, btoa,
+              postMessage: data => parentPort.postMessage(data) }, { codeGeneration: { strings: false, wasm: true } });
+            const module = new vm.SourceTextModule(workerData, { context });
+            const ready = module.link(id => { throw new Error('Unexpected worker import: ' + id); }).then(() => module.evaluate());
+            parentPort.on('message', async data => { await ready; context.onmessage({ data }); });
+          `, { eval: true, workerData: asset.source.toString() });
+          workers.add(this.thread);
+          this.thread.on('message', data => this.onmessage?.({ data } as MessageEvent));
+          this.thread.on('error', error => { errors.push(error); this.onerror?.({ preventDefault() {} }); });
+        }
+        postMessage(data: unknown) { this.thread.postMessage(data); }
+        terminate() { workers.delete(this.thread); void this.thread.terminate(); }
+      };
       window.TextEncoder = TextEncoder;
       window.TextDecoder = TextDecoder;
       window.Uint8Array = Uint8Array;
@@ -66,12 +100,23 @@ test('viewer connects editing, source selection, errors, labels, resizing and fi
       return build.output;
     }).filter(item => item.type === 'chunk');
     assert.equal(chunks.length, 1);
-    const module = new vm.SourceTextModule(chunks[0]!.code, { context: dom.getInternalVMContext() });
+    const module = new vm.SourceTextModule(chunks[0]!.code, {
+      context: dom.getInternalVMContext(),
+      initializeImportMeta: meta => { meta.url = 'https://viewer.test/entry.js'; },
+    });
     await module.link(specifier => { throw new Error(`Unexpected import: ${specifier}`); });
     await module.evaluate();
     const harness = window.viewerTest;
     assert.ok(harness);
-    const tick = () => harness.nextTick();
+    const tick = async () => {
+      await harness.nextTick();
+      const deadline = Date.now() + 6000;
+      while (window.document.querySelector('.output-pane[aria-busy="true"]')) {
+        assert.ok(Date.now() < deadline, 'Decoder did not settle');
+        await new Promise(resolve => setTimeout(resolve, 5));
+        await harness.nextTick();
+      }
+    };
     const document = window.document;
     function element<T extends HTMLElement = HTMLElement>(selector: string, parent: ParentNode = document): T {
       const found = parent.querySelector<T>(selector);
@@ -195,7 +240,7 @@ test('viewer connects editing, source selection, errors, labels, resizing and fi
     await tick();
     const raw = Buffer.from('4AABtest', 'base64url');
     const fileBytes = new window.Uint8Array(raw);
-    const file = { name: 'primitive.qb2', arrayBuffer: async () => fileBytes.buffer };
+    const file = { name: 'primitive.qb2', size: fileBytes.byteLength, arrayBuffer: async () => fileBytes.buffer };
     Object.defineProperty(document.querySelector('#input-file'), 'files', { value: [file], configurable: true });
     element('#input-file').dispatchEvent(new window.Event('change', { bubbles: true }));
     await tick(); await tick();
@@ -225,9 +270,87 @@ test('viewer connects editing, source selection, errors, labels, resizing and fi
     element('.cesr-token').click();
     await tick();
     assert.ok(button('Copy value'));
+    // Reject oversized uploads before reading their bytes.
+    let readOversized = false;
+    Object.defineProperty(document.querySelector('#input-file'), 'files', {
+      value: [{ name: 'oversized.cesr', size: MAX_INPUT_BYTES + 1, arrayBuffer() { readOversized = true; } }], configurable: true,
+    });
+    element('#input-file').dispatchEvent(new window.Event('change', { bubbles: true }));
+    await tick();
+    assert.equal(readOversized, false);
+    assert.match(element('[role="alert"]').textContent, /100 MB/);
+    const previousText = editor().state.doc.toString();
+    setText('x'.repeat(MAX_INPUT_BYTES + 1));
+    await tick();
+    assert.equal(editor().state.doc.toString(), previousText);
+    assert.match(element('[role="alert"]').textContent, /100 MB/);
+
+    setText('x'.repeat(MAX_TEXT_PREVIEW_BYTES + 1));
+    await tick();
+    assert.ok(document.querySelector('.byte-view'));
+    assert.equal(document.querySelector('.cm-content'), null);
+    assert.match(element('.input-caption').textContent, /Pasted input/);
+    assert.equal(document.querySelector('.parse-error'), null);
+
+    // A cancelled result must never replace edited input or repopulate output.
+    await loadExample('keripy-inception');
+    button('Inspect').click();
+    await harness.nextTick();
+    button('Cancel').click();
+    await tick();
+    assert.equal(document.querySelector('.structure-content'), null);
+    button('Inspect').click();
+    setText('edited while decoding');
+    await tick();
+    assert.equal(document.querySelector('.structure-content'), null);
+
+    let largeValue = JSON.stringify({ v: 'KERI10JSON000000_', t: 'rpy', a: 'plain text '.repeat(10_000) });
+    largeValue = largeValue.replace('000000', Buffer.byteLength(largeValue).toString(16).padStart(6, '0'));
+    setText(largeValue);
+    await tick();
+    button('Inspect').click();
+    await tick();
+    const largeToken = [...document.querySelectorAll<HTMLElement>('.cesr-token')].find(el => el.textContent.startsWith('"plain text'));
+    assert.ok(largeToken);
+    assert.equal(largeToken.textContent.length, 4097);
+    largeToken.click();
+    await tick();
+    assert.equal(element('.selected-value').textContent.length, 4097);
+    assert.match(element('.value-inspector').textContent, /complete value/);
+    button('Wire annotations').click();
+    await tick();
+    const firstWirePage = element('.wire-content').textContent;
+    assert.equal(firstWirePage.length, 64 * 1024);
+    element<HTMLButtonElement>('.output-scroll .hex-toolbar button:last-child').click();
+    await tick();
+    assert.ok(element('.wire-content').textContent.length < 64 * 1024);
+    assert.notEqual(element('.wire-content').textContent, firstWirePage);
+
+    const many = Array.from({ length: 60 }, (_, i) => i);
+    let tree = JSON.stringify({ v: 'KERI10JSON000000_', t: 'rpy', a: many });
+    tree = tree.replace('000000', Buffer.byteLength(tree).toString(16).padStart(6, '0'));
+    setText(tree.repeat(12));
+    await tick();
+    button('Inspect').click();
+    await tick();
+    assert.equal(document.querySelectorAll('.structure-content > .cesr-node').length, 10);
+    button('Show next 2 entries (2 remaining)').click();
+    await tick();
+    assert.equal(document.querySelectorAll('.structure-content > .cesr-node').length, 12);
+    const nested = [...document.querySelectorAll<HTMLDetailsElement>('.node-group')].find(el => el.querySelector(':scope > summary .cesr-label')?.textContent === 'a');
+    assert.ok(nested);
+    assert.equal(nested.querySelector('.cesr-children'), null);
+    nested.open = true;
+    nested.dispatchEvent(new window.Event('toggle'));
+    await tick();
+    assert.equal(nested.querySelectorAll('.cesr-node').length, 50);
+    button('Show next 10 items (10 remaining)').click();
+    await tick();
+    assert.equal(nested.querySelectorAll('.cesr-node').length, 60);
     assert.deepEqual(errors.map(error => String(error)), []);
   } finally {
     window.viewerTest?.app.unmount();
+    for (const worker of workers) await worker.terminate();
     window.close();
   }
 });

@@ -1,3 +1,5 @@
+import { addStaticCsp } from './build/static-csp.ts';
+
 const siteUrl = 'https://cesrview.provenant.net/';
 const siteTitle = 'CESR Viewer — Online CESR Decoder & Inspector';
 const description = 'Decode CESR streams, cryptographic primitives and attachments in your browser. Inspect KERI and ACDC data with source highlighting. No data is uploaded.';
@@ -6,6 +8,7 @@ const socialImageAlt = 'CESR Viewer: browser-based CESR decoding with linked inp
 
 export default defineNuxtConfig({
   ssr: false,
+  vite: { worker: { format: 'es' } },
   app: {
     baseURL: '/',
     head: {
@@ -71,11 +74,14 @@ export default defineNuxtConfig({
   nitro: {
     hooks: {
       'prerender:generate'(route) {
-        if (route.route !== '/404.html' || typeof route.contents !== 'string') return;
-        // GitHub Pages serves this static document for unknown URLs.
-        route.contents = route.contents
-          .replace(/<meta name="robots" content="[^"]*"[^>]*>/, '<meta name="robots" content="noindex, nofollow">')
-          .replace(/<link rel="canonical"[^>]*>/, '');
+        if (typeof route.contents !== 'string' || !/<head(?:\s[^>]*)?>/i.test(route.contents)) return;
+        if (route.route === '/404.html') {
+          // GitHub Pages serves this static document for unknown URLs.
+          route.contents = route.contents
+            .replace(/<meta name="robots" content="[^"]*"[^>]*>/, '<meta name="robots" content="noindex, nofollow">')
+            .replace(/<link rel="canonical"[^>]*>/, '');
+        }
+        route.contents = addStaticCsp(route.contents);
       },
     },
   },

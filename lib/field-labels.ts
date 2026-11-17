@@ -31,7 +31,7 @@ const acdc: Record<string, string> = {
   A: 'Attribute aggregate', e: 'Edges', r: 'Rules',
 };
 export function labelFields(body: InspectionNode, proto: string, type: unknown) {
-  const names = proto === 'ACDC' ? acdc : proto === 'KERI' && typeof type === 'string' ? fields[type] : null;
+  const names = proto === 'ACDC' ? acdc : proto === 'KERI' && typeof type === 'string' && Object.hasOwn(fields, type) ? fields[type] : null;
   if (!names) return;
   for (const child of body.children ?? []) {
     if (child.label !== undefined && Object.hasOwn(names, child.label)) child.fieldName = names[child.label];
