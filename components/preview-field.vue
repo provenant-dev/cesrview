@@ -1,100 +1,111 @@
 <template>
-  <div>
-    <div class="row">
-      <div class="col-md-8 my-2">
-        <div class="output-container">
-          {{ outputData? '':'The output will be shown here...' }}
-          <div v-html="outputData" @click="clickOnOutput"></div>
-        </div>
+  <section class="output-pane" aria-labelledby="output-heading" :aria-busy="busy">
+    <div class="pane-toolbar">
+      <h2 id="output-heading">Decoded</h2>
+      <div class="view-switch" role="group" aria-label="Output view">
+        <button type="button" :aria-pressed="view === 'structure'" @click="view = 'structure'">Structure</button>
+        <button type="button" :aria-pressed="view === 'wire'" :disabled="!result?.annotations" @click="view = 'wire'">Wire annotations</button>
       </div>
-      <div class="col-md-4 my-2">
-        <div class="more-info-container">
-          <div class="card">
-            <div class="card-header">
-              More info
-            </div>
-            <div class="card-body">
-              <div v-if="metaInfo">
-                <div class="accordion" id="accordionCESRMoreInfo">
-
-                  <button class="btn btn-outline-success mb-3" style="width: 100%;" @click="copyToClipboard">
-                    {{ cesrData!="" && copiedInClipboard ? "Copied To Clipboard!":"Copy To Clipboard" }}
-                  </button>
-                  
-                  <Accordion v-if="metaInfo.code" title="Code" :value="metaInfo.code" id="cesr-collapse-1" parentID="accordionCESRMoreInfo" />
-
-                  <Accordion v-if="metaInfo.counter_code" title="Base64 To Int" :value="metaInfo.counter_code +' > '+metaInfo.counter_code_int" id="cesr-collapse-2" parentID="accordionCESRMoreInfo" />
-
-                  <Accordion v-if="metaInfo.name" title="Name" :value="metaInfo.name" id="cesr-collapse-3" parentID="accordionCESRMoreInfo" />
-
-                  <Accordion v-if="metaInfo.code_len" title="Code Length" :value="metaInfo.code_len" id="cesr-collapse-4" parentID="accordionCESRMoreInfo" />
-
-                  <Accordion v-if="metaInfo.total_len" title="Total Length" :value="metaInfo.total_len" id="cesr-collapse-5" parentID="accordionCESRMoreInfo" />
-
-                  <Accordion v-if="metaInfo.description" title="Description" :value="metaInfo.description" id="cesr-collapse-6" parentID="accordionCESRMoreInfo" />
-
-                </div>
-              </div>
-              <div v-else>
-                Select a CESR data to get more information.
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+      <label class="field-label-toggle"><input v-model="showLabels" type="checkbox"> Field names</label>
+      <span v-if="result" class="result-size">{{ result.byteLength.toLocaleString() }} bytes</span>
     </div>
-  </div>
+
+    <div class="output-scroll" tabindex="0" aria-label="Decoded output">
+      <div v-if="error" class="parse-error" role="alert">
+        <h3>Could not decode input</h3>
+        <p>{{ error }}</p>
+        <button v-if="errorLocation" type="button" class="text-button error-jump" @click="$emit('locate', errorLocation)">{{ errorLocation.kind === 'end' ? 'Input ended' : 'Error' }} at byte {{ errorLocation.start }}. Show in source</button>
+        <p v-else class="location-unavailable">The parser did not provide an exact byte location.</p>
+        <p>Check the data and inspection mode, then try again.</p>
+      </div>
+      <p v-else-if="!result" class="empty-output">{{ busy ? 'Decoding input… You can cancel or edit the input.' : 'Select Inspect to decode the input.' }}</p>
+      <div v-else-if="view === 'structure'" class="structure-content">
+        <CesrNode v-for="(node, index) in result.nodes.slice(0, visible)" :key="index" :node="node" :selected="selected" :show-labels="showLabels" @select="select" />
+        <button v-if="visible < result.nodes.length" type="button" class="text-button" @click="visible += 10">Show next {{ Math.min(10, result.nodes.length - visible) }} entries ({{ result.nodes.length - visible }} remaining)</button>
+      </div>
+      <template v-else>
+        <div v-if="wirePages > 1" class="hex-toolbar">
+          <span>Wire annotations</span>
+          <div><button type="button" class="text-button" :disabled="wirePage === 0" @click="wirePage--">Previous</button>
+            <span>{{ wirePage + 1 }} / {{ wirePages }}</span>
+            <button type="button" class="text-button" :disabled="wirePage + 1 >= wirePages" @click="wirePage++">Next</button></div>
+        </div>
+        <pre class="wire-content">{{ wireText }}</pre>
+      </template>
+    </div>
+
+    <aside v-if="selected" class="value-inspector" aria-label="Selected value details">
+      <div class="inspector-heading">
+        <h3>{{ selected.meta?.Name || selected.fieldName || selected.label || 'Value' }}<span v-if="selected.meta">{{ selected.meta.Family }}</span></h3>
+        <button v-if="selected.meta || !selected.children" type="button" class="text-button" @click="copyToClipboard">{{ copied ? 'Copied' : 'Copy value' }}</button>
+        <button type="button" class="dismiss-button" aria-label="Dismiss value details" @click="select(null)">×</button>
+      </div>
+      <code class="selected-value">{{ selected.value?.slice(0, 4096) ?? selected.label }}{{ (selected.value?.length ?? 0) > 4096 ? '…' : '' }}</code>
+      <p v-if="(selected.value?.length ?? 0) > 4096" class="selection-location">Showing the first 4,096 characters. Copy value includes the complete value.</p>
+      <p v-if="selected.source" class="selection-location">Bytes {{ selected.source.start }}–{{ selected.source.end - 1 }} <button type="button" class="text-button" @click="$emit('locate', selected.source)">Show in source</button></p>
+      <p v-else class="selection-location">Exact field bytes are unavailable for this encoding.<button v-if="selected.sourceContainer" type="button" class="text-button" @click="$emit('locate', selected.sourceContainer)">Show message body</button></p>
+      <dl v-if="selected.meta" class="metadata-list">
+        <template v-for="(value, label) in selected.meta" :key="label">
+          <div v-if="!['Family', 'Name'].includes(label)"><dt>{{ label }}</dt><dd>{{ value }}</dd></div>
+        </template>
+      </dl>
+      <p v-if="copyError" class="copy-error" role="alert">{{ copyError }}</p>
+      <span class="visually-hidden" role="status">{{ copied ? 'CESR text copied to clipboard.' : '' }}</span>
+    </aside>
+    <div class="output-status" role="status">{{ busy ? 'Decoding…' : result ? (view === 'structure' ? 'Select a value to locate its source and inspect details.' : 'Wire annotations include enclosure information.') : 'No output' }}</div>
+  </section>
 </template>
-<script>
-export default {
-  props: ['outputData'],
-  data(){
-    return {
-      metaInfo: null,
-      cesrData: "",
-      copiedInClipboard: false
-    }
-  },
-  methods:{
-    clickOnOutput(event){
-      if(event.target.getAttribute('meta-cesr-code')) {
-        this.cesrData = event.target.innerHTML;
-        this.metaInfo = this.$getMetaInfoFromCESRCodetable(event.target.getAttribute('meta-cesr-code'));
-        if(event.target.getAttribute('meta-cesr-count-code') && event.target.getAttribute('meta-cesr-count-code-int')) {
-          this.metaInfo.counter_code = event.target.getAttribute('meta-cesr-count-code');
-          this.metaInfo.counter_code_int = event.target.getAttribute('meta-cesr-count-code-int');
-        }
-        this.copiedInClipboard = false;
-        // console.log(this.metaInfo);
-      }
-    },
-    async copyToClipboard(){
-      if(this.cesrData && navigator && navigator.clipboard) {
-        await navigator.clipboard.writeText(this.cesrData);
-        this.copiedInClipboard = true;
-      } else {
-        this.copiedInClipboard = false;
-      }
-    }
+
+<script setup lang="ts">
+import { computed, ref, watch } from 'vue';
+import type { InspectionNode, InspectionResult, SourceTarget } from '~/lib/types.ts';
+
+const props = withDefaults(defineProps<{
+  result?: InspectionResult | null;
+  error?: string;
+  errorLocation?: SourceTarget | null;
+  busy?: boolean;
+}>(), { result: null, error: '', errorLocation: null, busy: false });
+const emit = defineEmits<{ locate: [range: SourceTarget | null] }>();
+const selected = ref<InspectionNode | null>(null);
+const showLabels = ref(true);
+const view = ref<'structure' | 'wire'>('structure');
+const copied = ref(false);
+const copyError = ref('');
+const visible = ref(10);
+const wirePage = ref(0);
+const wirePageSize = 64 * 1024;
+const wirePages = computed(() => Math.max(1, Math.ceil((props.result?.annotations.length ?? 0) / wirePageSize)));
+const wireText = computed(() => {
+  const text = props.result?.annotations ?? '';
+  // Never split a surrogate pair across annotation pages.
+  const boundary = (index: number) => index > 0 && /[\uDC00-\uDFFF]/.test(text.charAt(index))
+    && /[\uD800-\uDBFF]/.test(text.charAt(index - 1)) ? index - 1 : index;
+  return text.slice(boundary(wirePage.value * wirePageSize), boundary((wirePage.value + 1) * wirePageSize));
+});
+function select(node: InspectionNode | null) {
+  selected.value = node;
+  copied.value = false;
+  copyError.value = '';
+  emit('locate', node?.source ?? null);
+}
+watch(() => props.result, () => {
+  visible.value = 10;
+  wirePage.value = 0;
+  selected.value = null;
+  copied.value = false;
+  copyError.value = '';
+  view.value = 'structure';
+});
+async function copyToClipboard() {
+  const node = selected.value;
+  if (!node) return;
+  copyError.value = '';
+  try {
+    await navigator.clipboard.writeText(String(node.value ?? node.label));
+    if (selected.value === node) copied.value = true;
+  } catch {
+    if (selected.value === node) copyError.value = 'Clipboard access is unavailable. Select the encoded value above to copy it manually.';
   }
 }
 </script>
-<style>
-.output-container {
-  border: 1px solid rgba(0,0,0,.125);
-  border-radius: 5px;
-  padding: 20px;
-  line-break: anywhere;
-}
-.more-info-container {
-  position: sticky;
-  top: 20px;
-}
-
-@media screen and (max-width: 768px) {
-  .output-container {
-    max-height: 400px;
-    overflow: scroll;
-  }
-}
-</style>

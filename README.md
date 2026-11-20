@@ -1,31 +1,72 @@
 # CESR Viewer
-The Composable Event Streaming Representation (CESR) is a dual text-binary encoding format that has the unique property of text-binary concatenation composability. This composability property enables the round trip conversion en-masse of concatenated primitives between the text domain and binary domain while maintaining the separability of individual primitives. This enables convenient usability in the text domain and compact transmission in the binary domain. CESR primitives are self-framing. CESR supports self-framing group codes that enable stream processing and pipelining in both the text and binary domains. CESR supports composable text-binary encodings for general data types as well as suites of cryptographic material. Popular cryptographic material suites have compact encodings for efficiency while less compact encodings provide sufficient extensibility to support all foreseeable types. CESR streams also support interleaved JSON, CBOR, and MGPK serializations. CESR is a universal encoding that uniquely provides dual text and binary domain representations via composable conversion. The CESR protocol is used by other protocols such as [KERI](https://arxiv.org/abs/1907.02143).
 
-## Setup
+Inspect CESR streams, KERI and ACDC messages, cryptographic primitives, and
+attachment groups. Processing happens in your browser; no data is uploaded.
 
-Make sure to install the dependencies:
+[Open the viewer](https://cesrview.provenant.net/) · [CESR specification](https://trustoverip.github.io/kswg-cesr-specification/)
+
+## Usage
+
+1. Paste text, open a text or binary file, or choose **Examples…**.
+2. Choose an inspection mode and select **Inspect** (`Ctrl` / `Cmd` + `Enter`).
+3. Select a decoded value to see its details and highlight its source bytes.
+
+**Message stream** detects JSON, CBOR, MessagePack, and native CESR messages.
+For standalone matter, indexed signatures, or attachment groups, choose the
+matching mode and text (`qb64`) or binary (`qb2`) encoding. Attachment groups
+also require the CESR table version. Examples select these settings for you.
+
+The viewer includes syntax highlighting, resizable panes, readable field names,
+wire annotations, a binary hex view, and error locations where available.
+Specifications and learning links are under **Resources**.
+
+Inputs are limited to 100 MB (100,000,000 bytes), 100,000 messages, 1,000,000 decoded
+nodes, and 64 nesting levels. Decoding runs in a cancellable worker with a
+60-second timeout. Inputs over 2 MiB use the paged byte view, including large
+pastes. Large results appear in batches; expand nested groups to inspect their
+contents. The message and node limits can be reached before the byte limit.
+
+## Development
+
+Requires Node.js 24.
 
 ```bash
-# npm
-npm install
-```
-
-## Development Server
-
-Start the development server on http://localhost:3000
-
-```bash
+npm ci
 npm run dev
 ```
 
-## Production
+Open [localhost:3000](http://localhost:3000).
 
-Build the application for production:
-```bash
-npx nuxi generate
-```
+## Test and build
 
-Locally preview production build:
 ```bash
+npm run typecheck
+npm test
+npm run generate
 npm run preview
 ```
+
+The static site is generated in `.output/public`. Pushes to `main` run type checks
+and tests, then deploy to GitHub Pages.
+Generated HTML includes a Content Security Policy with hashes for Nuxt's inline
+scripts. Regenerate the site after changing scripts; do not edit exported HTML.
+
+## Parser limitations
+
+Parsing uses `cesr-ts@2.2.1` with KERIpy-compatible CESR 1.0 / 2.0 tables.
+Some codes differ from the published ToIP specification. The viewer decodes
+structure; it does not verify signatures, SAIDs, or key event state.
+Some encodings provide source locations for a whole body rather than each field.
+
+## Maintenance
+
+- Regenerate the demo events with `node build/example-events.ts`. Tests check
+  their byte lengths, SAIDs, signatures, and event links.
+- TypeScript is pinned to 6.0.3 because the current Vue type checker
+  [does not support TypeScript 7](https://github.com/vuejs/language-tools/issues/6124).
+- The `archiver` override uses `readdir-glob` 4 to pull in patched `minimatch`.
+  Remove it when `archiver` updates its dependency.
+
+## License
+
+[Apache-2.0](LICENSE). Bundled fonts have their own [license](public/fonts/OFL.txt).

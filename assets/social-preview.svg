@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <rect width="1200" height="630" fill="#FFFFFF"/>
+  <text x="64" y="116" fill="#014DB5" font-family="IBM Plex Sans" font-weight="600" font-size="64">CESR Viewer</text>
+  <text x="64" y="176" fill="#434343" font-family="IBM Plex Sans" font-size="28">Decode CESR streams. Inspect KERI and ACDC data.</text>
+  <rect x="64" y="230" width="1072" height="280" rx="4" fill="#FFFFFF" stroke="#E4EAF3" stroke-width="2"/>
+  <path d="M65 234Q65 231 68 231H1132Q1135 231 1135 234V288H65Z" fill="#F2F6FC"/>
+  <path d="M64 288H1136M580 230V510" fill="none" stroke="#E4EAF3" stroke-width="2"/>
+  <g font-family="IBM Plex Sans" font-size="20" fill="#13243F" font-weight="600">
+    <text x="92" y="267">Input</text>
+    <text x="608" y="267">Decoded</text>
+  </g>
+  <text x="92" y="362" fill="#014DB5" font-family="IBM Plex Mono" font-size="40">4AABtest</text>
+  <text x="92" y="460" fill="#64748B" font-family="IBM Plex Sans" font-size="20">Matter primitive · Text (qb64)</text>
+  <g font-family="IBM Plex Sans" font-size="24" fill="#64748B">
+    <text x="608" y="343">Code</text>
+    <text x="608" y="401">Text length</text>
+    <text x="608" y="459">Binary length</text>
+  </g>
+  <g font-family="IBM Plex Mono" font-size="24" fill="#014DB5">
+    <text x="852" y="343">4A</text>
+    <text x="852" y="401">8 characters</text>
+    <text x="852" y="459">6 bytes</text>
+  </g>
+  <text x="64" y="578" fill="#64748B" font-family="IBM Plex Sans" font-size="22">Processed in your browser. No data is uploaded.</text>
+  <text x="1136" y="578" fill="#014DB5" font-family="IBM Plex Sans" font-size="22" text-anchor="end">cesrview.provenant.net</text>
+</svg>

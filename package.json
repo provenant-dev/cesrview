@@ -1,14 +1,38 @@
 {
   "private": true,
+  "type": "module",
   "scripts": {
+    "test": "node --experimental-vm-modules --test --test-isolation=none tests/*.test.ts",
     "build": "nuxt build",
     "dev": "nuxt dev",
     "generate": "nuxt generate",
     "preview": "nuxt preview",
-    "postinstall": "nuxt prepare"
+    "postinstall": "nuxt prepare",
+    "typecheck": "nuxt typecheck"
   },
   "devDependencies": {
-    "nuxt": "^4.6.3",
-    "sass": "^1.57.1"
+    "@types/jsdom": "^30.0.0",
+    "@types/json-source-map": "^0.6.0",
+    "@types/node": "^26.6.6",
+    "jsdom": "^31.0.1",
+    "nuxt": "^4.6.4",
+    "sass": "^1.108.2",
+    "typescript": "6.0.3",
+    "vue-tsc": "^3.3.14"
+  },
+  "dependencies": {
+    "@codemirror/commands": "^6.11.1",
+    "@codemirror/lang-json": "^6.0.2",
+    "@codemirror/language": "^6.13.1",
+    "@codemirror/state": "^6.7.6",
+    "@codemirror/view": "^6.43.15",
+    "@lezer/highlight": "^1.2.5",
+    "cesr-ts": "2.2.1",
+    "json-source-map": "^0.6.1"
+  },
+  "overrides": {
+    "archiver": {
+      "readdir-glob": "^4.0.0"
+    }
   }
 }

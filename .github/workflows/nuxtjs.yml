@@ -12,11 +12,9 @@ on:
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
-# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
+# The build only needs to read the repository. Deployment grants its own scopes.
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 # Allow one concurrent deployment
 concurrency:
@@ -69,6 +67,10 @@ jobs:
             ${{ runner.os }}-nuxt-build-
       - name: Install dependencies
         run: ${{ steps.detect-package-manager.outputs.manager }} ${{ steps.detect-package-manager.outputs.command }}
+      - name: TypeScript checks
+        run: npm run typecheck
+      - name: Parser regression tests
+        run: npm test
       - name: Static HTML export with Nuxt
         run: ${{ steps.detect-package-manager.outputs.manager }} run generate
       - name: Upload artifact
@@ -78,6 +80,9 @@ jobs:
 
   # Deployment job
   deploy:
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
